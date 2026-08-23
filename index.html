@@ -3623,10 +3623,6 @@ class UIManager {
     if (!neo) return;
     const s = this.s;
     const d = neo.closeApproachDate;
-    let simHour = d.hour - 8;
-    let simDay = d.day;
-    if (simHour < 0) { simHour += 24; simDay -= 1; }
-    this.setDate(d.year, d.month, simDay, simHour, d.min, d.sec || 0);
 
     let ev = s.events.find(e => e.neoKey === neoKey);
     if (!ev) {
@@ -3659,27 +3655,30 @@ class UIManager {
     const d = neo.closeApproachDate;
     const impactDate = OrbitalMechanics.julianDate(d.year, d.month, d.day, d.hour + d.min / 60 + (d.sec || 0) / 3600);
 
-    const ev = s.createImpactEvent({
-      targetKey: 'earth',
-      diameter: neo.diameter,
-      material: neo.material,
-      density: neo.density,
-      velocity: neo.velocityKmS * 1000,
-      impactDate,
-      approachAz: neo.approachAz,
-      approachElev: neo.approachElev,
-      impactAngle: neo.impactAngle,
-      errorMarginKm: neo.errorMarginKm,
-      name: neo.name,
-      neoKey: neoKey
-    });
-    this.refreshEventList();
+    let ev = s.events.find(e => e.neoKey === neoKey);
+    if (!ev) {
+      ev = s.createImpactEvent({
+        targetKey: 'earth',
+        diameter: neo.diameter,
+        material: neo.material,
+        density: neo.density,
+        velocity: neo.velocityKmS * 1000,
+        impactDate,
+        approachAz: neo.approachAz,
+        approachElev: neo.approachElev,
+        impactAngle: neo.impactAngle,
+        errorMarginKm: neo.errorMarginKm,
+        name: neo.name,
+        neoKey: neoKey
+      });
+      this.refreshEventList();
+    }
 
     if (isPreview) {
       this.previewEvent(ev);
     } else {
-      this.jumpToEvent(ev);
       s.selectAsteroid(ev.key);
+      s.focusSelected();
       this.toast(`Scheduled Earth impact simulation: ${neo.name}`);
     }
   }
