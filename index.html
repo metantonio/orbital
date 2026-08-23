@@ -2014,6 +2014,15 @@ class CameraController {
     this.shake = 0;
     this._shakeOffset = new THREE.Vector3();
     this._active = false;
+    this.trackingBody = null;
+    this._lastTrackPos = new THREE.Vector3();
+  }
+
+  setTracking(body) {
+    this.trackingBody = body;
+    if (body && body.worldPos) {
+      this._lastTrackPos.copy(body.worldPos);
+    }
   }
 
   focus(targetPos, opts = {}) {
@@ -2029,6 +2038,9 @@ class CameraController {
     this._t0 = performance.now();
     this._dur = opts.duration || 1200;
     this._active = true;
+    if (opts.body) {
+      this.setTracking(opts.body);
+    }
   }
 
   goPreset(name, bodies) {
@@ -2041,12 +2053,13 @@ class CameraController {
     };
     const p = presets[name];
     if (p) {
+      this.setTracking(null);
       this.focus(p.t, { size: p.size, dist: p.dist, duration: 1300 });
       return;
     }
     const b = bodies[name];
     if (b) {
-      this.focus(b.worldPos, { size: b.radiusScene, dist: b.radiusScene * 4.5, duration: 1200 });
+      this.focus(b.worldPos, { size: b.radiusScene, dist: b.radiusScene * 4.5, duration: 1200, body: b });
     }
   }
 
@@ -2062,6 +2075,16 @@ class CameraController {
       const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
       this.cam.position.lerpVectors(this._startPos, this._endPos, ease);
       this.controls.target.lerpVectors(this._startTarget, this._endTarget, ease);
+      if (this.trackingBody && this.trackingBody.worldPos) {
+        this._lastTrackPos.copy(this.trackingBody.worldPos);
+      }
+    } else if (this.trackingBody && this.trackingBody.worldPos) {
+      const delta = this.trackingBody.worldPos.clone().sub(this._lastTrackPos);
+      if (delta.lengthSq() > 1e-9) {
+        this.controls.target.add(delta);
+        this.cam.position.add(delta);
+        this._lastTrackPos.copy(this.trackingBody.worldPos);
+      }
     }
     this.controls.update();
 
@@ -2186,17 +2209,23 @@ class ImpactSimulator {
     this.target = event.targetBody;
     this.seqT = 0;
     this.phase = 'approach';
-    this._camDir = new THREE.Vector3(0.55, 0.6, 0.45).normalize();
-    this._camPos = this.target.worldPos.clone().add(new THREE.Vector3(12, 9, 12));
+    this._camDir = new THREE.Vector3(0.55, 0.45, 0.55).normalize();
+    this._camPos = this.target.worldPos.clone().addScaledVector(this._camDir, this.target.radiusScene * 4.0);
+    this._savedSpeed = 1;
   }
 
   startCinematic() {
     this.system.activeImpact = this;
     this.phase = 'approach';
     this.seqT = 0;
+    this._savedSpeed = this.system.clock.speed;
     this.system.cam.controls.enabled = false;
-    this.system.clock.speed = Math.max(this.system.clock.speed, 60000);
+    this.system.selectBody(this.target.key);
+    this.system.cam.setTracking(this.target);
+    // Standardize to real-time speed (1 s/s) during physical collision
+    this.system.clock.speed = 1;
     this.system.clock.paused = false;
+    this.system.ui.updateStatus();
   }
 
   trigger() {
@@ -2229,70 +2258,76 @@ class ImpactSimulator {
 
     // Ejecta / Debris Particle Fountain
     const gas = ['jupiter', 'saturn', 'uranus', 'neptune', 'sun'].includes(this.target.key);
-    const particleCount = gas ? 500 : 1100;
+    const particleCount = gas ? 600 : 1400;
     sys.particles.emit(this.impactPoint, {
       count: particleCount,
-      speed: Math.max(16, this.a.vImpact * 0.0035),
+      speed: Math.max(18, this.a.vImpact * 0.0035),
       spread: 1.3,
-      size: 4.0,
-      life: 3.5,
+      size: 4.5,
+      life: 4.0,
       grav: this.target.data.gravity * 0.02,
       color: new THREE.Color(gas ? '#ffd166' : '#fca311')
     });
-    sys.particles.emit(this.impactPoint, { count: 80, speed: 70, size: 8, life: 0.9, color: new THREE.Color('#ffffff') });
+    sys.particles.emit(this.impactPoint, { count: 120, speed: 75, size: 9, life: 1.2, color: new THREE.Color('#ffffff') });
 
     // Camera Shake
-    sys.cam.shakeCamera(0.65, 1800);
+    sys.cam.shakeCamera(0.75, 2000);
 
     // HUD Banner
     sys.ui.showImpactHUD(this.event);
-    setTimeout(() => { if (sys.activeImpact === this) sys.clock.speed = Math.min(sys.clock.speed, 500); }, 1600);
   }
 
   update(dtReal) {
+    const tPos = this.target.worldPos;
     if (this.phase === 'approach') {
       this.seqT += dtReal;
-      const aPos = this.a.mesh.position, tPos = this.target.worldPos;
-      const mid = new THREE.Vector3().lerpVectors(aPos, tPos, 0.5);
-      const sep = Math.max(aPos.distanceTo(tPos), this.target.radiusScene * 1.3);
-      const desired = mid.clone().addScaledVector(this._camDir, sep * 1.5);
-      this._camPos.lerp(desired, 0.07);
-      this.system.camera.position.lerp(this._camPos, 0.10);
-      this.system.cam.controls.target.lerp(mid, 0.12);
+      const aPos = this.a.mesh.position;
+      const mid = new THREE.Vector3().lerpVectors(aPos, tPos, 0.4);
+      const sep = Math.max(aPos.distanceTo(tPos), this.target.radiusScene * 1.5);
+      const desired = mid.clone().addScaledVector(this._camDir, sep * 1.6);
+      this._camPos.lerp(desired, 0.08);
+      this.system.camera.position.lerp(this._camPos, 0.12);
+      this.system.cam.controls.target.copy(mid);
 
       if (this.system.clock.jd >= this.a.impactDate - 1e-6) {
         this.trigger();
       }
     } else if (this.phase === 'impact') {
       this.seqT += dtReal;
-      const t = Math.min(this.seqT / 0.35, 1);
+      const t = Math.min(this.seqT / 0.4, 1);
       if (this.flash) {
+        this.flash.position.copy(this.impactPoint);
         this.flash.material.opacity = Math.sin(t * Math.PI * 0.9);
         this.flash.scale.setScalar(1 + this.seqT * 45);
       }
       if (this.shock) {
-        const st = Math.min(this.seqT / 2.6, 1);
+        this.shock.position.copy(this.impactPoint);
+        const st = Math.min(this.seqT / 3.0, 1);
         this.shock.material.opacity = (1 - st) * 0.9;
-        this.shock.scale.setScalar(1 + st * this.target.radiusScene * 12);
+        this.shock.scale.setScalar(1 + st * this.target.radiusScene * 14);
       }
-      if (this.seqT > 1.2 && this.seqT < 6) {
-        const pull = this.target.worldPos.clone().addScaledVector(this._camDir, this.target.radiusScene * (3.5 + (this.seqT - 1.2)));
-        this._camPos.lerp(pull, 0.03);
-        this.system.camera.position.lerp(this._camPos, 0.06);
-      }
-      if (this.seqT > 8) {
+      // Keep camera smoothly positioned orbiting the impact zone
+      const desiredCam = tPos.clone().addScaledVector(this._camDir, this.target.radiusScene * 4.2);
+      this.system.camera.position.lerp(desiredCam, 0.05);
+      this.system.cam.controls.target.copy(tPos);
+
+      if (this.seqT > 7) {
         this.phase = 'release';
         this.releaseTimer = 0;
       }
     } else if (this.phase === 'release') {
       this.releaseTimer = (this.releaseTimer || 0) + dtReal;
-      const back = this.target.worldPos.clone().addScaledVector(this._camDir, this.target.radiusScene * 10);
-      this._camPos.lerp(back, 0.03);
-      this.system.camera.position.lerp(this._camPos, 0.04);
-      if (this.releaseTimer > 4.5) {
+      const finalCam = tPos.clone().addScaledVector(this._camDir, this.target.radiusScene * 4.5);
+      this.system.camera.position.lerp(finalCam, 0.05);
+      this.system.cam.controls.target.copy(tPos);
+
+      if (this.releaseTimer > 3.0) {
         this.system.cam.controls.enabled = true;
+        this.system.cam.setTracking(this.target);
         this.system.activeImpact = null;
         this.event.phase = 'completed';
+        this.system.clock.speed = 1;
+        this.system.ui.updateStatus();
         this.system.ui.hideImpactHUD();
         if (this.flash && this.flash.parent) this.flash.parent.remove(this.flash);
         if (this.shock && this.shock.parent) this.shock.parent.remove(this.shock);
@@ -2656,16 +2691,15 @@ class SolarSystem {
   }
 
   previewEvent(event) {
-    const daysBefore = Math.min(Math.max(event.asteroid.impactDate - this.clock.jd, 0.0001), 25);
-    this.clock.jd = event.asteroid.impactDate - daysBefore;
-    this.clock.speed = 150000;
+    this.clock.jd = event.asteroid.impactDate - (8 / 86400); // 8 seconds before impact
+    this.clock.speed = 1;
     this.clock.paused = false;
     this.startCinematic(event);
   }
 
   jumpToImpact(event) {
-    this.clock.jd = event.asteroid.impactDate - (1 / 86400); // 1 sec before
-    this.clock.speed = 40000;
+    this.clock.jd = event.asteroid.impactDate - (3 / 86400); // 3 seconds before impact
+    this.clock.speed = 1;
     this.clock.paused = false;
     this.startCinematic(event);
   }
@@ -2729,6 +2763,8 @@ class SolarSystem {
 
   selectBody(key) {
     this.selectedKey = key;
+    const b = this.bodies[key] || this.moons[key];
+    this.cam.setTracking(b);
     this.ui.renderInfo(key);
     this.ui.refreshObjectList();
     this._updateOrbitLines();
@@ -2737,11 +2773,12 @@ class SolarSystem {
   focusSelected() {
     if (!this.selectedKey) return;
     const b = this.bodies[this.selectedKey] || this.moons[this.selectedKey];
-    if (b) this.cam.focus(b.worldPos, { size: b.radiusScene, dist: b.radiusScene * 4.2, duration: 1200 });
+    if (b) this.cam.focus(b.worldPos, { size: b.radiusScene, dist: b.radiusScene * 4.2, duration: 1200, body: b });
   }
 
   deselect() {
     this.selectedKey = null;
+    this.cam.setTracking(null);
     this.ui.renderInfo(null);
     this.ui.refreshObjectList();
     this._updateOrbitLines();
