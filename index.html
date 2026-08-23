@@ -859,6 +859,34 @@ class OrbitalMechanics {
     return { x, y, z, r, nu, E, a: e.a, e: e.e, i: e.i, O: e.O, w: e.w };
   }
 
+  // Heliocentric position in AU from mean anomaly M and orbital elements (angles in radians)
+  static heliocentricFromM(a, e, i_rad, O_rad, w_rad, M) {
+    let M_norm = M % (2 * Math.PI);
+    if (M_norm < 0) M_norm += 2 * Math.PI;
+
+    let E = M_norm;
+    for (let k = 0; k < 12; k++) {
+      const dE = (E - e * Math.sin(E) - M_norm) / (1 - e * Math.cos(E));
+      E -= dE;
+      if (Math.abs(dE) < 1e-9) break;
+    }
+
+    const sqrtE = Math.sqrt(Math.max(1e-6, (1 + e) / (1 - e)));
+    const nu = 2 * Math.atan2(sqrtE * Math.sin(E / 2), Math.cos(E / 2));
+    const r = a * (1 - e * Math.cos(E));
+    const u = nu + w_rad;
+
+    const cosU = Math.cos(u), sinU = Math.sin(u);
+    const cosO = Math.cos(O_rad), sinO = Math.sin(O_rad);
+    const cosI = Math.cos(i_rad), sinI = Math.sin(i_rad);
+
+    const x = r * (cosU * cosO - sinU * sinO * cosI);
+    const y = r * (cosU * sinO + sinU * cosO * cosI);
+    const z = r * (sinU * sinI);
+
+    return { x, y, z, r, nu, E };
+  }
+
   static moonPosition(moon, jd) {
     const daysSinceJ2000 = jd - JD_J2000;
     const e = moon.e || 0.05;
@@ -2182,6 +2210,7 @@ const KNOWN_NEOS = {
     torinoScale: '0 (Historically Torino 4)',
     palermoScale: '-2.84',
     hazard: true,
+    el: { a: 0.9228, e: 0.1912, i: 3.331, O: 204.05, w: 126.40 },
     description: 'Passes within 31,600 km of Earth on April 13, 2029 (closer than geostationary satellites at 35,786 km). Earth tidal gravitational forces will reshape its spin state.'
   },
   bennu: {
@@ -2202,6 +2231,7 @@ const KNOWN_NEOS = {
     torinoScale: '0 (Cumulative Impact Prob: 1 in 1,750 by 2182)',
     palermoScale: '-1.41',
     hazard: true,
+    el: { a: 1.1264, e: 0.2037, i: 6.035, O: 2.06, w: 66.22 },
     description: 'Target of the NASA OSIRIS-REx sample return mission. Carbonaceous rubble-pile asteroid with potential gravitational keyhole encounters in 2060 and 2182.'
   },
   da1950: {
@@ -2222,6 +2252,7 @@ const KNOWN_NEOS = {
     torinoScale: '0 (Historically highest Palermo risk)',
     palermoScale: '-1.81',
     hazard: true,
+    el: { a: 1.6987, e: 0.5074, i: 12.18, O: 356.7, w: 224.6 },
     description: 'Massive 1.3 km kilometer-class metallic-stony asteroid. A direct impact would release over 155,000 Megatones causing global climatic disruption and megatsunamis.'
   },
   dw2023: {
@@ -2242,6 +2273,7 @@ const KNOWN_NEOS = {
     torinoScale: '0 (Formerly Torino 1)',
     palermoScale: '-2.12',
     hazard: false,
+    el: { a: 1.258, e: 0.174, i: 2.89, O: 338.4, w: 24.3 },
     description: 'Discovered in Feb 2023 with an initial 1-in-560 impact probability for Valentine’s Day 2046, later safely ruled out following high-precision radar refinement.'
   }
 };
@@ -2273,6 +2305,46 @@ class Asteroid {
     this.approachElev = params.approachElev || 25;
     this.errorMarginKm = params.errorMarginKm || 0;
     this.dir = this._travelDir();
+
+    // Keplerian Heliocentric Orbit Parameters
+    const targetPlanet = target.data.parent ? (target.system ? target.system.bodies[target.data.parent] : null) : target;
+    const targetEl = (targetPlanet && targetPlanet.data.el) ? targetPlanet.data.el : BODIES.earth.el;
+    const T_imp = OrbitalMechanics.julianCentury(this.impactDate);
+    const p_target_imp = OrbitalMechanics.heliocentric(targetEl, T_imp);
+
+    if (params.neoKey && KNOWN_NEOS[params.neoKey] && KNOWN_NEOS[params.neoKey].el) {
+      const nel = KNOWN_NEOS[params.neoKey].el;
+      this.orb_a = nel.a;
+      this.orb_e = nel.e;
+      this.orb_i = nel.i * DEG;
+      this.orb_O = nel.O * DEG;
+      this.orb_w = nel.w * DEG;
+    } else {
+      const az = (this.approachAz || 90) * DEG;
+      const el = (this.approachElev || 25) * DEG;
+      this.orb_a = Math.max(0.70, p_target_imp.r * (1.14 + 0.16 * Math.cos(az)));
+      this.orb_e = clamp(0.24 + 0.22 * Math.sin(az * 0.8), 0.08, 0.58);
+      this.orb_i = Math.max(2.5 * DEG, el * 0.8);
+      this.orb_O = (az + 50 * DEG) % (2 * Math.PI);
+      this.orb_w = (110 * DEG);
+    }
+
+    // Determine reference mean anomaly at impact epoch so asteroid's solar orbit intersects target planet's position
+    const cosO = Math.cos(this.orb_O), sinO = Math.sin(this.orb_O);
+    const cosI = Math.cos(this.orb_i), sinI = Math.sin(this.orb_i);
+    const xt = p_target_imp.x * cosO + p_target_imp.y * sinO;
+    const yt = (-p_target_imp.x * sinO + p_target_imp.y * cosO) * cosI + p_target_imp.z * sinI;
+    const u_imp = Math.atan2(yt, xt);
+    let nu_imp = (u_imp - this.orb_w) % (2 * Math.PI);
+    if (nu_imp < 0) nu_imp += 2 * Math.PI;
+
+    const tanHalfE = Math.sqrt(Math.max(1e-6, (1 - this.orb_e) / (1 + this.orb_e))) * Math.tan(nu_imp / 2);
+    let E_imp = 2 * Math.atan(tanHalfE);
+    if (E_imp < 0) E_imp += 2 * Math.PI;
+    this.M_imp = (E_imp - this.orb_e * Math.sin(E_imp)) % (2 * Math.PI);
+    if (this.M_imp < 0) this.M_imp += 2 * Math.PI;
+
+    this.meanMotion = (2 * Math.PI) / (365.25 * Math.pow(this.orb_a, 1.5)); // rad/day
   }
 
   get worldPos() {
@@ -2284,30 +2356,78 @@ class Asteroid {
     return new THREE.Vector3(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az)).normalize();
   }
 
-  update(jd, system) {
-    const ttiDays = this.impactDate - jd;
-    const travelMeters = Math.max(0, ttiDays * 86400) * this.velocity;
-    const travelKm = travelMeters / 1000;
+  getPositionAtJD(jd, system) {
+    const dDays = jd - this.impactDate; // days relative to impact (negative before, 0 at impact)
+    const M = (this.M_imp + this.meanMotion * dDays) % (2 * Math.PI);
+    const hp = OrbitalMechanics.heliocentricFromM(this.orb_a, this.orb_e, this.orb_i, this.orb_O, this.orb_w, M);
+
+    const rPlane = Math.hypot(hp.x, hp.y);
+    const S = (rPlane > 1e-6 ? system.scale.dist(rPlane) / rPlane : 1);
+    const helioScenePos = new THREE.Vector3(hp.x * S, hp.z * S, -hp.y * S);
 
     const target = this.targetBody;
-    const scenePerKm = target.radiusScene / target.data.radius;
-    let travelScene = travelKm * scenePerKm;
-    if (travelScene > 180) travelScene = 180;
+    const ttiDays = this.impactDate - jd;
 
-    const base = target.worldPos.clone().addScaledVector(this.dir, -target.radiusScene);
-    const pos = base.clone().addScaledVector(this.dir, travelScene);
+    // Within 8 days of impact: gravitational attraction curves the trajectory toward target impact surface point
+    if (ttiDays >= 0 && ttiDays < 8) {
+      const w = Math.pow(1 - ttiDays / 8, 2.2); // Smooth Hermite/gravity blend
+      const travelMeters = ttiDays * 86400 * this.velocity;
+      const travelKm = travelMeters / 1000;
+      const scenePerKm = target.radiusScene / target.data.radius;
+      const travelScene = Math.min(travelKm * scenePerKm, 45);
+
+      const surfacePt = target.worldPos.clone().addScaledVector(this.dir, -target.radiusScene);
+      const encounterPos = surfacePt.clone().addScaledVector(this.dir, travelScene);
+      return helioScenePos.clone().lerp(encounterPos, w);
+    } else if (ttiDays < 0 && ttiDays > -2) {
+      return target.worldPos.clone().addScaledVector(this.dir, -target.radiusScene);
+    }
+
+    return helioScenePos;
+  }
+
+  update(jd, system) {
+    const ttiDays = this.impactDate - jd;
+    const target = this.targetBody;
+    const pos = this.getPositionAtJD(jd, system);
 
     if (this.mesh) {
       this.mesh.position.copy(pos);
       this.mesh.visible = true;
     }
 
-    this.distKm = travelKm;
+    const distKm = (pos.distanceTo(target.worldPos) / (target.radiusScene / target.data.radius));
+    this.distKm = distKm;
     this.ttiDays_val = ttiDays;
+
+    // Full Heliocentric Keplerian Orbit Ring for the Asteroid
+    if (!this.orbitRing) {
+      const ringGeo = new THREE.BufferGeometry();
+      const ringMat = new THREE.LineBasicMaterial({
+        color: 0xf59e0b, transparent: true, opacity: 0.45, depthWrite: false
+      });
+      this.orbitRing = new THREE.LineLoop(ringGeo, ringMat);
+      system.scene.add(this.orbitRing);
+
+      const ringPts = [];
+      const ringSteps = 128;
+      for (let k = 0; k < ringSteps; k++) {
+        const M_sample = (k / ringSteps) * 2 * Math.PI;
+        const hp = OrbitalMechanics.heliocentricFromM(this.orb_a, this.orb_e, this.orb_i, this.orb_O, this.orb_w, M_sample);
+        const rP = Math.hypot(hp.x, hp.y);
+        const S_r = (rP > 1e-6 ? system.scale.dist(rP) / rP : 1);
+        ringPts.push(hp.x * S_r, hp.z * S_r, -hp.y * S_r);
+      }
+      this.orbitRing.geometry.setAttribute('position', new THREE.Float32BufferAttribute(ringPts, 3));
+      this.orbitRing.geometry.computeBoundingSphere();
+    }
+    if (this.orbitRing) {
+      this.orbitRing.visible = system.state.showOrbits;
+    }
 
     if (!this.line) {
       const geo = new THREE.BufferGeometry();
-      const mat = new THREE.LineDashedMaterial({ color: 0xf87171, dashSize: 0.8, gapSize: 0.5, transparent: true, opacity: 0.8 });
+      const mat = new THREE.LineDashedMaterial({ color: 0xf87171, dashSize: 0.8, gapSize: 0.5, transparent: true, opacity: 0.85 });
       this.line = new THREE.Line(geo, mat);
       system.scene.add(this.line);
 
@@ -2315,54 +2435,87 @@ class Asteroid {
       system.scene.add(this.head);
     }
 
-    // 3D Uncertainty Error Margin Corridor Funnel
+    // 3D Curved Orbit Ribbon & Trajectory Polyline
+    const pts = [];
+    const steps = 64;
+    const startJD = Math.min(jd, this.impactDate - 30);
+    const endJD = this.impactDate;
+
+    for (let k = 0; k <= steps; k++) {
+      const sampleT = startJD + (k / steps) * (endJD - startJD);
+      pts.push(this.getPositionAtJD(sampleT, system));
+    }
+    const surfacePt = target.worldPos.clone().addScaledVector(this.dir, -target.radiusScene);
+    pts[pts.length - 1] = surfacePt;
+
+    this.line.geometry.setFromPoints(pts);
+    this.line.computeLineDistances();
+    this.head.position.copy(pos);
+    this.head.visible = (ttiDays > 0.001);
+
+    // 3D Uncertainty Error Margin Corridor Ribbon along the curved arc
     if (!this.corridor && this.errorMarginKm > 0) {
-      const rOuter = Math.max(0.12, (this.errorMarginKm / 100000) * target.radiusScene * 4);
-      const corrGeo = new THREE.CylinderGeometry(0.02, rOuter, 1, 16, 1, true);
-      corrGeo.rotateX(Math.PI / 2);
+      const corrGeo = new THREE.BufferGeometry();
       const corrMat = new THREE.MeshBasicMaterial({
-        color: 0x38bdf8, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false
+        color: 0x38bdf8, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false
       });
       this.corridor = new THREE.Mesh(corrGeo, corrMat);
       system.scene.add(this.corridor);
 
       const bGeo = new THREE.BufferGeometry();
-      const bMat = new THREE.LineDashedMaterial({ color: 0x38bdf8, dashSize: 0.6, gapSize: 0.4, transparent: true, opacity: 0.5 });
+      const bMat = new THREE.LineDashedMaterial({ color: 0x38bdf8, dashSize: 0.6, gapSize: 0.4, transparent: true, opacity: 0.55 });
       this.corridorLines = new THREE.LineSegments(bGeo, bMat);
       system.scene.add(this.corridorLines);
     }
 
-    const impactTargetPt = target.worldPos.clone().addScaledVector(this.dir, -target.radiusScene);
-    const pts = [pos.clone(), impactTargetPt];
-    this.line.geometry.setFromPoints(pts);
-    this.line.computeLineDistances();
-    this.head.position.copy(pos);
-    const isVeryClose = (travelScene < target.radiusScene * 1.5);
-    this.head.visible = !isVeryClose;
+    if (this.corridor && this.errorMarginKm > 0) {
+      const cPts = [], cIndices = [], bPts = [];
+      const cSteps = 32;
+      const rMax = Math.max(0.15, (this.errorMarginKm / 100000) * target.radiusScene * 4);
 
-    if (this.corridor) {
-      const p1 = pos.clone(), p2 = impactTargetPt;
-      const length = Math.max(p1.distanceTo(p2), 0.01);
-      this.corridor.position.copy(p1).add(p2).multiplyScalar(0.5);
-      this.corridor.scale.set(1, 1, length);
-      this.corridor.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), this.dir.clone().negate());
+      for (let k = 0; k <= cSteps; k++) {
+        const frac = k / cSteps;
+        const sJD = startJD + frac * (endJD - startJD);
+        const p = this.getPositionAtJD(sJD, system);
+        const rCurrent = rMax * (1 - frac);
 
-      const rOuter = Math.max(0.12, (this.errorMarginKm / 100000) * target.radiusScene * 4);
-      const right = new THREE.Vector3(0, 1, 0).cross(this.dir).normalize().multiplyScalar(rOuter);
-      const up = this.dir.clone().cross(right).normalize().multiplyScalar(rOuter);
-      const bPts = [
-        p1.clone(), p2.clone().add(right),
-        p1.clone(), p2.clone().sub(right),
-        p1.clone(), p2.clone().add(up),
-        p1.clone(), p2.clone().sub(up)
-      ];
+        const nextJD = sJD + 0.1;
+        const pNext = this.getPositionAtJD(nextJD, system);
+        const tangent = pNext.clone().sub(p).normalize();
+        let normal = new THREE.Vector3(0, 1, 0).cross(tangent).normalize();
+        if (normal.lengthSq() < 0.01) normal = new THREE.Vector3(1, 0, 0).cross(tangent).normalize();
+        const binormal = tangent.clone().cross(normal).normalize();
+
+        const pLeft = p.clone().addScaledVector(normal, rCurrent);
+        const pRight = p.clone().addScaledVector(normal, -rCurrent);
+        const pTop = p.clone().addScaledVector(binormal, rCurrent);
+        const pBottom = p.clone().addScaledVector(binormal, -rCurrent);
+
+        cPts.push(pLeft.x, pLeft.y, pLeft.z);
+        cPts.push(pRight.x, pRight.y, pRight.z);
+
+        if (k < cSteps) {
+          const base = k * 2;
+          cIndices.push(base, base + 1, base + 2);
+          cIndices.push(base + 1, base + 3, base + 2);
+        }
+
+        if (k === 0 || k === cSteps || k % 8 === 0) {
+          bPts.push(pLeft, pRight, pTop, pBottom);
+        }
+      }
+
+      this.corridor.geometry.setAttribute('position', new THREE.Float32BufferAttribute(cPts, 3));
+      this.corridor.geometry.setIndex(cIndices);
+      this.corridor.geometry.computeVertexNormals();
+      this.corridor.visible = (ttiDays > 0.001);
+
       this.corridorLines.geometry.setFromPoints(bPts);
       this.corridorLines.computeLineDistances();
-      this.corridor.visible = !isVeryClose;
-      this.corridorLines.visible = !isVeryClose;
+      this.corridorLines.visible = (ttiDays > 0.001);
     }
 
-    return { ttiDays, travelKm };
+    return { ttiDays, distKm };
   }
 }
 
@@ -2886,6 +3039,7 @@ class SolarSystem {
     if (ev.asteroid.head) this.scene.remove(ev.asteroid.head);
     if (ev.asteroid.corridor) this.scene.remove(ev.asteroid.corridor);
     if (ev.asteroid.corridorLines) this.scene.remove(ev.asteroid.corridorLines);
+    if (ev.asteroid.orbitRing) this.scene.remove(ev.asteroid.orbitRing);
     if (ev.impactSim) ev.impactSim.dispose();
     if (this.activeImpact && this.activeImpact === ev.impactSim) {
       this.activeImpact = null;
