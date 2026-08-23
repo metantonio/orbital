@@ -753,10 +753,8 @@ const MOONS = {
    =========================================================================== */
 class OrbitalMechanics {
   static julianDate(y, mo, d, h = 0) {
-    if (mo <= 2) { y -= 1; mo += 12; }
-    const A = Math.floor(y / 100);
-    const B = 2 - A + Math.floor(A / 4);
-    return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (mo + 1)) + d + h / 24 - 1524.5 + B;
+    const utc = Date.UTC(y, mo - 1, d) + h * 3600000;
+    return 2451545.0 + (utc - 946728000000) / 86400000;
   }
   static julianCentury(jd) { return (jd - JD_J2000) / 36525.0; }
 
@@ -822,14 +820,13 @@ class OrbitalMechanics {
    =========================================================================== */
 class SimulationClock {
   constructor() {
-    this.jd = JD_J2000;
+    this.jd = 2451545.0 + (Date.now() - 946728000000) / 86400000;
     this.speed = 1 / 24; // simulation days per real second (default: 1 hr / sec)
     this.paused = false;
     this._last = performance.now();
   }
   setNow() {
-    const d = new Date();
-    this.jd = OrbitalMechanics.julianDate(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600);
+    this.jd = 2451545.0 + (Date.now() - 946728000000) / 86400000;
   }
   update(dtReal) {
     if (this.paused || this.speed === 0) return;
@@ -837,22 +834,7 @@ class SimulationClock {
   }
   get date() { return this._jdToGregorian(this.jd); }
   _jdToGregorian(jd) {
-    let z = Math.floor(jd + 0.5);
-    let a = z + 32075;
-    let b = Math.floor((4 * a + 3) / 146097);
-    let c = a - Math.floor((146097 * b) / 4);
-    let d = Math.floor((4 * c + 3) / 1461);
-    let e = c - Math.floor((1461 * d) / 4);
-    let m = Math.floor((5 * e + 2) / 153);
-    let day = e - Math.floor((153 * m + 2) / 5) + 1;
-    let month = m + 3 - 12 * Math.floor(m / 10);
-    let year = 100 * b - 4800 + Math.floor(m / 10);
-    const frac = (jd + 0.5) - z;
-    const totalSec = Math.round(frac * 86400);
-    const hh = Math.floor(totalSec / 3600);
-    const mm = Math.floor((totalSec % 3600) / 60);
-    const ss = totalSec % 60;
-    return new Date(Date.UTC(year, month - 1, day, hh, mm, ss));
+    return new Date(946728000000 + (jd - 2451545.0) * 86400000);
   }
   fmtDate(d) {
     const p = n => String(n).padStart(2, '0');
@@ -2029,11 +2011,11 @@ class CameraController {
     const size = opts.size || 5;
     const dir = new THREE.Vector3(0.5, 0.45, 0.6).normalize();
     const dist = opts.dist || Math.max(size * 2.8, 4.0);
-    const toPos = targetPos.clone().addScaledVector(dir, dist);
+    this._focusOffset = dir.multiplyScalar(dist);
 
     this._startPos = this.cam.position.clone();
     this._startTarget = this.controls.target.clone();
-    this._endPos = toPos;
+    this._endPos = targetPos.clone().add(this._focusOffset);
     this._endTarget = targetPos.clone();
     this._t0 = performance.now();
     this._dur = opts.duration || 1200;
@@ -2073,17 +2055,25 @@ class CameraController {
       let t = (performance.now() - this._t0) / this._dur;
       if (t >= 1) { t = 1; this._active = false; }
       const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      this.cam.position.lerpVectors(this._startPos, this._endPos, ease);
-      this.controls.target.lerpVectors(this._startTarget, this._endTarget, ease);
+
+      const currentTarget = (this.trackingBody && this.trackingBody.worldPos)
+        ? this.trackingBody.worldPos.clone()
+        : this._endTarget;
+      const currentEndPos = currentTarget.clone().add(this._focusOffset || new THREE.Vector3(2, 2, 3));
+
+      this.cam.position.lerpVectors(this._startPos, currentEndPos, ease);
+      this.controls.target.lerpVectors(this._startTarget, currentTarget, ease);
+
       if (this.trackingBody && this.trackingBody.worldPos) {
         this._lastTrackPos.copy(this.trackingBody.worldPos);
       }
     } else if (this.trackingBody && this.trackingBody.worldPos) {
-      const delta = this.trackingBody.worldPos.clone().sub(this._lastTrackPos);
-      if (delta.lengthSq() > 1e-9) {
+      const currentPos = this.trackingBody.worldPos;
+      const delta = currentPos.clone().sub(this._lastTrackPos);
+      if (delta.lengthSq() > 1e-12) {
         this.controls.target.add(delta);
         this.cam.position.add(delta);
-        this._lastTrackPos.copy(this.trackingBody.worldPos);
+        this._lastTrackPos.copy(currentPos);
       }
     }
     this.controls.update();
@@ -2174,7 +2164,7 @@ class Asteroid {
       this.line = new THREE.Line(geo, mat);
       system.scene.add(this.line);
 
-      this.head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), new THREE.MeshBasicMaterial({ color: 0xff4d4d }));
+      this.head = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 12), new THREE.MeshBasicMaterial({ color: 0xff4d4d, transparent: true, opacity: 0.85 }));
       system.scene.add(this.head);
     }
 
@@ -2182,6 +2172,8 @@ class Asteroid {
     this.line.geometry.setFromPoints(pts);
     this.line.computeLineDistances();
     this.head.position.copy(pos);
+    const isVeryClose = (travelScene < target.radiusScene * 1.5);
+    this.head.visible = !isVeryClose;
 
     return { ttiDays, travelKm };
   }
@@ -2431,6 +2423,7 @@ class SolarSystem {
     window.addEventListener('resize', () => this._onResize());
     window.addEventListener('keydown', e => this._onKeyDown(e));
     this.domElement.addEventListener('click', e => this._onClick(e));
+    this.domElement.addEventListener('dblclick', e => this._onDblClick(e));
     this.domElement.addEventListener('mousemove', e => this._onMouseMove(e));
 
     // Hide Loading
@@ -2655,9 +2648,11 @@ class SolarSystem {
     const target = this.getTargetBody(params.targetKey);
     if (!target) throw new Error('Invalid celestial target body.');
     const a = new Asteroid(Object.assign({}, params, { targetBody: target }));
-    const visSize = Math.max(0.45, 0.45 + Math.log10(Math.max(10, a.diameter)) * 0.14);
-    const geo = new THREE.IcosahedronGeometry(visSize, 0);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x6e5c4d, roughness: 0.9, metalness: 0.2, flatShading: true });
+    const km = Math.max(0.01, a.diameter / 1000);
+    // Visual size: realistic scaling relative to planet radius (0.018 for 50m, 0.024 for 100m, 0.045 for 1km, 0.11 for 10km)
+    const visSize = Math.max(0.012, Math.min(target.radiusScene * 0.40, 0.045 * Math.pow(km, 0.35)));
+    const geo = new THREE.DodecahedronGeometry(visSize, 1);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x827365, roughness: 0.92, metalness: 0.15, flatShading: true });
     a.mesh = new THREE.Mesh(geo, mat);
     a.mesh.castShadow = true;
     this.scene.add(a.mesh);
@@ -2747,6 +2742,25 @@ class SolarSystem {
       }
     } else {
       this.deselect();
+    }
+  }
+
+  _onDblClick(e) {
+    const rect = this.domElement.getBoundingClientRect();
+    this._raycaster.setFromCamera({
+      x: (e.clientX - rect.left) / rect.width * 2 - 1,
+      y: -(e.clientY - rect.top) / rect.height * 2 + 1
+    }, this.camera);
+
+    const meshes = [...this.order.map(k => this.bodies[k].mesh), ...Object.values(this.moons).map(m => m.mesh)];
+    const hits = this._raycaster.intersectObjects(meshes, true);
+    if (hits.length) {
+      let obj = hits[0].object;
+      while (obj && !obj.userData.body) obj = obj.parent;
+      if (obj && obj.userData.body) {
+        this.selectBody(obj.userData.body.key);
+        this.focusSelected();
+      }
     }
   }
 
@@ -2894,7 +2908,14 @@ class UIManager {
     document.getElementById('btnDatePreset2000').onclick = () => this.setDate(2000, 1, 1, 12, 0, 0);
     document.getElementById('btnDatePreset2026').onclick = () => this.setDate(2026, 8, 20, 12, 0, 0);
     document.getElementById('btnDatePreset2030').onclick = () => this.setDate(2030, 1, 1, 0, 0, 0);
-    document.getElementById('btnDateNow').onclick = () => { s.clock.setNow(); this._syncDateInputs(); this.toast('Set date to current real-time UTC.'); };
+    document.getElementById('btnDateNow').onclick = () => {
+      s.clock.setNow();
+      this._syncDateInputs();
+      s._recomputeAll();
+      if (s.selectedKey) this.renderInfo(s.selectedKey);
+      this.updateStatus();
+      this.toast('Simulation synced to current real-time UTC: ' + s.clock.fmtDate(s.clock.date));
+    };
 
     // Set Date Button
     document.getElementById('btnSetDate').onclick = () => this._applyDateInput();
