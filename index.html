@@ -964,127 +964,132 @@ class TextureFactory {
       const absLat = Math.abs(lat);
 
       // Polar Ice Caps (Greenland & Antarctica)
-      if (lat < -62) {
+      if (lat < -60) {
         const iceDetail = fbm(u * 24, v * 24, 4);
         const iceVal = clamp(235 + iceDetail * 70, 225, 255);
         return [iceVal, clamp(iceVal + 2, 0, 255), clamp(iceVal + 8, 0, 255), 255];
       }
-      if (lat > 60 && lon > -72 && lon < -20) {
-        const grNoise = fbm(u * 20, v * 16, 4);
-        if (grNoise > 0.35) {
+      if (lat > 60 && lon > -74 && lon < -18) {
+        const grNoise = fbm(u * 18, v * 14, 4);
+        if (grNoise > 0.36) {
           const gv = clamp(238 + grNoise * 50, 220, 255);
           return [gv, gv + 2, clamp(gv + 8, 0, 255), 255];
         }
       }
 
       // Continental Landmass Analytical Base
-      let land = 0;
+      let base = 0;
       // North America
       if (lon > -168 && lon < -52 && lat > 12 && lat < 72) {
-        if (lat > 50 && lon < -125) land = Math.max(land, 0.85);
-        else if (lon > -130 && lon < -60 && lat > 24 && lat < 55) land = Math.max(land, 0.95);
-        else if (lon > -115 && lon < -85 && lat > 14 && lat < 32) land = Math.max(land, 0.85);
-        else if (lon > -82 && lon < -79 && lat > 24 && lat < 31) land = Math.max(land, 0.9);
-        else if (lon > -90 && lon < -60 && lat > 10 && lat < 26) land = Math.max(land, 0.8);
+        if (lat > 50 && lon < -125) base = Math.max(base, 0.9);
+        else if (lon > -130 && lon < -60 && lat > 24 && lat < 55) base = Math.max(base, 0.95);
+        else if (lon > -115 && lon < -85 && lat > 14 && lat < 32) base = Math.max(base, 0.88);
+        else if (lon > -82 && lon < -79 && lat > 24 && lat < 31) base = Math.max(base, 0.9);
+        else if (lon > -90 && lon < -60 && lat > 8 && lat < 26) base = Math.max(base, 0.85);
       }
       // South America
       if (lon > -82 && lon < -34 && lat > -56 && lat < 13) {
         const w = lat > -15 ? 24 : Math.max(4, 24 + lat * 0.45);
         const center = lat > -15 ? -60 : -66;
-        if (Math.abs(lon - center) < w) land = Math.max(land, 0.95);
+        if (Math.abs(lon - center) < w) base = Math.max(base, 0.95);
       }
       // Africa
       if (lon > -18 && lon < 52 && lat > -35 && lat < 37) {
         const w = lat > 5 ? 32 : Math.max(8, 20 + lat * 0.4);
         const center = lat > 5 ? 16 : 24;
-        if (Math.abs(lon - center) < w) land = Math.max(land, 0.95);
+        if (Math.abs(lon - center) < w) base = Math.max(base, 0.95);
       }
       // Europe
       if (lon > -12 && lon < 45 && lat > 35 && lat < 72) {
-        if (lon < 0 && lat < 44) land = Math.max(land, 0.9);
-        else if (lon > -6 && lon < 2 && lat > 50 && lat < 59) land = Math.max(land, 0.85);
-        else if (lon > 5 && lon < 32 && lat > 56 && lat < 71) land = Math.max(land, 0.9);
-        else if (lon > 8 && lon < 18 && lat > 37 && lat < 46) land = Math.max(land, 0.9);
-        else land = Math.max(land, 0.95);
+        if (lon < 0 && lat < 44) base = Math.max(base, 0.9);
+        else if (lon > -6 && lon < 2 && lat > 50 && lat < 59) base = Math.max(base, 0.85);
+        else if (lon > 5 && lon < 32 && lat > 56 && lat < 71) base = Math.max(base, 0.9);
+        else if (lon > 8 && lon < 18 && lat > 37 && lat < 46) base = Math.max(base, 0.9);
+        else base = Math.max(base, 0.95);
       }
       // Asia
       if (lon > 40 && lon < 175 && lat > 8 && lat < 78) {
-        if (lat > 45) land = Math.max(land, 0.95);
-        else if (lon > 65 && lon < 125 && lat > 18 && lat < 45) land = Math.max(land, 0.95);
+        if (lat > 45) base = Math.max(base, 0.95);
+        else if (lon > 65 && lon < 125 && lat > 18 && lat < 45) base = Math.max(base, 0.95);
         else if (lon > 68 && lon < 92 && lat > 8 && lat < 32) {
-          if (lat > 8 + Math.abs(lon - 80) * 0.9) land = Math.max(land, 0.95);
-        } else if (lon > 35 && lon < 60 && lat > 12 && lat < 33) land = Math.max(land, 0.9);
-        else if (lon > 98 && lon < 110 && lat > 8 && lat < 22) land = Math.max(land, 0.85);
+          if (lat > 8 + Math.abs(lon - 80) * 0.9) base = Math.max(base, 0.95);
+        } else if (lon > 35 && lon < 60 && lat > 12 && lat < 33) base = Math.max(base, 0.9);
+        else if (lon > 98 && lon < 110 && lat > 8 && lat < 22) base = Math.max(base, 0.85);
       }
       // Australia & New Zealand
-      if (lon > 112 && lon < 155 && lat > -42 && lat < -10) land = Math.max(land, 0.95);
-      if (lon > 166 && lon < 178 && lat > -47 && lat < -34) land = Math.max(land, 0.85);
+      if (lon > 112 && lon < 155 && lat > -42 && lat < -10) base = Math.max(base, 0.95);
+      if (lon > 166 && lon < 178 && lat > -47 && lat < -34) base = Math.max(base, 0.85);
       // Japan
-      if (lon > 129 && lon < 146 && lat > 30 && lat < 46) land = Math.max(land, 0.85);
+      if (lon > 129 && lon < 146 && lat > 30 && lat < 46) base = Math.max(base, 0.85);
       // Madagascar
-      if (lon > 43 && lon < 51 && lat > -26 && lat < -12) land = Math.max(land, 0.85);
-      // Indonesia & Philippines archipelago
+      if (lon > 43 && lon < 51 && lat > -26 && lat < -12) base = Math.max(base, 0.85);
+      // Indonesia & Philippines
       if (lon > 95 && lon < 142 && lat > -11 && lat < 18) {
         const isl = fbm(u * 36, v * 28, 3);
-        if (isl > 0.46) land = Math.max(land, 0.85);
+        if (isl > 0.46) base = Math.max(base, 0.85);
       }
 
       // Fractal coastline modulation
       const coastNoise = fbm(u * 22, v * 16, 5) * 0.42 - 0.21;
       const microNoise = fbm(u * 64, v * 48, 3) * 0.12 - 0.06;
-      const totalLand = land + coastNoise + microNoise;
+      const totalLand = base + coastNoise + microNoise;
 
       if (totalLand > 0.48) {
-        const elev = clamp((totalLand - 0.48) * 3.2, 0, 1);
-        
-        // Deserts (Sahara, Arabia, Gobi, Australian Outback)
-        const isSahara = (lat > 14 && lat < 32 && lon > -15 && lon < 55);
-        const isArabia = (lat > 12 && lat < 32 && lon > 35 && lon < 60);
-        const isGobi = (lat > 36 && lat < 46 && lon > 85 && lon < 115);
-        const isAussieDesert = (lat > -32 && lat < -18 && lon > 118 && lon < 142);
-        const isDesert = isSahara || isArabia || isGobi || isAussieDesert || (absLat > 18 && absLat < 34 && fbm(u * 14, v * 10, 3) > 0.52);
+        // Specific Mountain Chains: Himalayas, Andes, Rockies, Alps
+        const isHimalayas = (lat > 27 && lat < 36 && lon > 74 && lon < 100);
+        const isAndes = (lon > -76 && lon < -67 && lat > -50 && lat < 8);
+        const isRockies = (lon > -122 && lon < -105 && lat > 34 && lat < 58);
+        const isAlps = (lon > 5 && lon < 16 && lat > 44 && lat < 48);
+
+        const mtnNoise = fbm(u * 45, v * 35, 4);
+        const isMtn = (isHimalayas || isAndes || isRockies || isAlps) && (mtnNoise > 0.48);
+        const isSnowPeak = isMtn && (mtnNoise > 0.78);
+
+        if (isSnowPeak) {
+          return [242, 246, 252, 255]; // Delicate snow crest on top peaks
+        }
+        if (isMtn) {
+          const mtnCol = mix([78, 68, 56], [128, 114, 98], (mtnNoise - 0.48) * 3.0);
+          return [mtnCol[0], mtnCol[1], mtnCol[2], 255]; // Rugged mountain rock
+        }
+
+        // Deserts
+        const isSahara = (lat > 14 && lat < 30 && lon > -15 && lon < 50);
+        const isArabia = (lat > 14 && lat < 30 && lon > 38 && lon < 58);
+        const isGobi = (lat > 38 && lat < 46 && lon > 88 && lon < 112);
+        const isAussieDesert = (lat > -32 && lat < -18 && lon > 120 && lon < 140);
+        const isDesert = isSahara || isArabia || isGobi || isAussieDesert;
 
         if (isDesert) {
           const sandNoise = fbm(u * 32, v * 24, 3) * 0.2;
           const sandCol = isAussieDesert
-            ? mix([205, 102, 52], [175, 75, 36], sandNoise + elev * 0.5)
-            : mix([218, 178, 115], [182, 142, 85], sandNoise + elev * 0.5);
+            ? mix([195, 95, 48], [165, 70, 32], sandNoise)
+            : mix([218, 172, 108], [185, 138, 76], sandNoise);
           return [sandCol[0], sandCol[1], sandCol[2], 255];
         }
 
-        // Mountains with Snow Caps (Himalayas, Andes, Rockies, Alps)
-        const isHimalayas = (lat > 26 && lat < 36 && lon > 74 && lon < 102);
-        const isAndes = (lon > -76 && lon < -67 && lat > -52 && lat < 8);
-        const isRockies = (lon > -122 && lon < -105 && lat > 32 && lat < 60);
-        const isAlps = (lon > 5 && lon < 16 && lat > 43 && lat < 48);
-        const isMountain = (isHimalayas || isAndes || isRockies || isAlps || elev > 0.78);
-
-        if (isMountain && elev > 0.62) {
-          const mtnFactor = clamp((elev - 0.62) * 3.0, 0, 1);
-          const snowLine = isHimalayas ? 0.75 : (absLat > 45 ? 0.65 : 0.82);
-          if (elev > snowLine) {
-            return [242, 246, 252, 255];
-          }
-          const mtnCol = mix([68, 62, 54], [115, 105, 92], mtnFactor);
-          return [mtnCol[0], mtnCol[1], mtnCol[2], 255];
-        }
-
         // Tropical Rainforests (Amazon, Congo, SE Asia)
-        const isRainforest = (absLat < 12 && (lon < -48 && lon > -78 || lon > 10 && lon < 32 || lon > 95 && lon < 140));
+        const isRainforest = (absLat < 10 && ((lon > -78 && lon < -50) || (lon > 10 && lon < 30) || (lon > 98 && lon < 140)));
         if (isRainforest) {
-          const veg = mix([22, 68, 26], [32, 92, 38], fbm(u * 28, v * 20, 3));
+          const veg = mix([18, 65, 22], [28, 88, 34], fbm(u * 28, v * 20, 3));
           return [veg[0], veg[1], veg[2], 255];
         }
 
-        // Temperate Forests & Grasslands
+        // Boreal Taiga (Siberia, Canada)
+        if (absLat > 52) {
+          const taiga = mix([35, 68, 42], [52, 78, 48], fbm(u * 24, v * 18, 3));
+          return [taiga[0], taiga[1], taiga[2], 255];
+        }
+
+        // Temperate Plains, Woodlands & Grasslands (Rich Vibrant Earth Greens)
         const vegT = fbm(u * 24, v * 18, 4);
-        const grass = mix([48, 108, 44], [92, 122, 52], vegT);
-        return [grass[0], grass[1], grass[2], 255];
+        const green = mix([42, 98, 38], [78, 118, 46], vegT);
+        return [green[0], green[1], green[2], 255];
       }
 
       // Ocean with Shallow Continental Shelves & Coral Reefs
       const coastDist = clamp((0.48 - totalLand) * 16.0, 0, 1);
-      const deepAbyss = [6, 22, 52];
+      const deepAbyss = [6, 22, 54];
       const openOcean = [12, 45, 98];
       const shallowShelf = [22, 115, 155];
       const lagoonTurquoise = [32, 172, 192];
@@ -1101,17 +1106,18 @@ class TextureFactory {
     return makeTexture(1024, 512, (u, v) => {
       const lon = (u - 0.5) * 360;
       const lat = (0.5 - v) * 180;
-      if (lat < -62) return [90, 90, 90, 255];
-      let land = 0;
-      if (lon > -168 && lon < -52 && lat > 12 && lat < 72) land = 0.95;
-      if (lon > -82 && lon < -34 && lat > -56 && lat < 13) land = 0.95;
-      if (lon > -18 && lon < 52 && lat > -35 && lat < 37) land = 0.95;
-      if (lon > -12 && lon < 45 && lat > 35 && lat < 72) land = 0.95;
-      if (lon > 40 && lon < 175 && lat > 8 && lat < 78) land = 0.95;
-      if (lon > 112 && lon < 155 && lat > -42 && lat < -10) land = 0.95;
-      const noise = fbm(u * 22, v * 16, 5) * 0.42 - 0.21;
-      const isOcean = (land + noise) <= 0.48;
-      const val = isOcean ? 255 : 6;
+      if (lat < -60) return [80, 80, 80, 255]; // Polar ice semi-gloss
+      let base = 0;
+      if (lon > -168 && lon < -52 && lat > 12 && lat < 72) base = 0.95;
+      if (lon > -82 && lon < -34 && lat > -56 && lat < 13) base = 0.95;
+      if (lon > -18 && lon < 52 && lat > -35 && lat < 37) base = 0.95;
+      if (lon > -12 && lon < 45 && lat > 35 && lat < 72) base = 0.95;
+      if (lon > 40 && lon < 175 && lat > 8 && lat < 78) base = 0.95;
+      if (lon > 112 && lon < 155 && lat > -42 && lat < -10) base = 0.95;
+      const coastNoise = fbm(u * 22, v * 16, 5) * 0.42 - 0.21;
+      const isOcean = (base + coastNoise) <= 0.48;
+      // Oceans = 255 (mirror sun glint), Land = 0 (completely matte)
+      const val = isOcean ? 255 : 0;
       return [val, val, val, 255];
     });
   }
@@ -1163,15 +1169,15 @@ class TextureFactory {
     return makeTexture(2048, 1024, (u, v) => {
       const lat = (0.5 - v) * Math.PI;
       const absLat = Math.abs(lat);
-      const itcz = Math.exp(-Math.pow(lat * 4.5, 2.0)) * 0.45;
-      const stormBelt = Math.exp(-Math.pow((absLat - 0.78) * 3.2, 2.0));
-      const cycloneNoise = warp(u * 8 + Math.sin(v * 12) * 0.5, v * 5, 2.8, 6);
-      const cirrus = fbm(u * 28 + cycloneNoise * 2.0, v * 20, 3) * 0.25;
+      const itcz = Math.exp(-Math.pow(lat * 5.0, 2.0)) * 0.38;
+      const stormBelt = Math.exp(-Math.pow((absLat - 0.82) * 3.5, 2.0));
+      const cycloneNoise = warp(u * 7.0 + Math.sin(v * 10.0) * 0.4, v * 4.5, 2.6, 5);
+      const cirrus = fbm(u * 24 + cycloneNoise * 1.5, v * 18, 3) * 0.22;
 
-      const totalCloud = (cycloneNoise * stormBelt * 1.2) + itcz + cirrus;
-      const density = clamp((totalCloud - 0.42) * 2.4, 0, 1);
-      const a = clamp(density * 240, 0, 240);
-      return [255, 255, 255, a];
+      const totalCloud = (cycloneNoise * stormBelt * 1.1) + itcz + cirrus;
+      const density = clamp((totalCloud - 0.50) * 2.6, 0, 1);
+      const alpha = clamp(density * 215, 0, 215);
+      return [255, 255, 255, alpha];
     });
   }
 
