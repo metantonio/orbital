@@ -958,55 +958,219 @@ class TextureFactory {
   }
 
   static _earth() {
-    return makeTexture(1024, 512, (u, v) => {
-      const lat = (v - 0.5) * Math.PI;
-      const cont = fbm(u * 4.2, v * 3.1, 6);
-      const detail = fbm(u * 16, v * 12, 4) * 0.25;
-      const landMask = cont + detail;
-      const isLand = landMask > 0.52;
+    return makeTexture(2048, 1024, (u, v) => {
+      const lon = (u - 0.5) * 360;
+      const lat = (0.5 - v) * 180;
+      const absLat = Math.abs(lat);
 
-      const polar = clamp((Math.abs(lat) - 1.12) * 4.0, 0, 1);
-      if (polar > 0.4) {
-        const iceNoise = fbm(u * 14, v * 14, 3) * 0.15;
-        const iceBright = clamp(235 + iceNoise * 100, 220, 255);
-        return [iceBright, iceBright + 2, clamp(iceBright + 8, 0, 255), 255];
+      // Polar Ice Caps (Greenland & Antarctica)
+      if (lat < -62) {
+        const iceDetail = fbm(u * 24, v * 24, 4);
+        const iceVal = clamp(235 + iceDetail * 70, 225, 255);
+        return [iceVal, clamp(iceVal + 2, 0, 255), clamp(iceVal + 8, 0, 255), 255];
+      }
+      if (lat > 60 && lon > -72 && lon < -20) {
+        const grNoise = fbm(u * 20, v * 16, 4);
+        if (grNoise > 0.35) {
+          const gv = clamp(238 + grNoise * 50, 220, 255);
+          return [gv, gv + 2, clamp(gv + 8, 0, 255), 255];
+        }
       }
 
-      if (isLand) {
-        const landFactor = clamp((landMask - 0.52) * 3.0, 0, 1);
-        const absLat = Math.abs(lat);
-        const desertZone = clamp(1.0 - Math.abs(absLat - 0.42) * 4.5, 0, 1);
-        const desertNoise = fbm(u * 10, v * 8, 3);
-        const isDesert = (desertZone > 0.35 && desertNoise > 0.35);
+      // Continental Landmass Analytical Base
+      let land = 0;
+      // North America
+      if (lon > -168 && lon < -52 && lat > 12 && lat < 72) {
+        if (lat > 50 && lon < -125) land = Math.max(land, 0.85);
+        else if (lon > -130 && lon < -60 && lat > 24 && lat < 55) land = Math.max(land, 0.95);
+        else if (lon > -115 && lon < -85 && lat > 14 && lat < 32) land = Math.max(land, 0.85);
+        else if (lon > -82 && lon < -79 && lat > 24 && lat < 31) land = Math.max(land, 0.9);
+        else if (lon > -90 && lon < -60 && lat > 10 && lat < 26) land = Math.max(land, 0.8);
+      }
+      // South America
+      if (lon > -82 && lon < -34 && lat > -56 && lat < 13) {
+        const w = lat > -15 ? 24 : Math.max(4, 24 + lat * 0.45);
+        const center = lat > -15 ? -60 : -66;
+        if (Math.abs(lon - center) < w) land = Math.max(land, 0.95);
+      }
+      // Africa
+      if (lon > -18 && lon < 52 && lat > -35 && lat < 37) {
+        const w = lat > 5 ? 32 : Math.max(8, 20 + lat * 0.4);
+        const center = lat > 5 ? 16 : 24;
+        if (Math.abs(lon - center) < w) land = Math.max(land, 0.95);
+      }
+      // Europe
+      if (lon > -12 && lon < 45 && lat > 35 && lat < 72) {
+        if (lon < 0 && lat < 44) land = Math.max(land, 0.9);
+        else if (lon > -6 && lon < 2 && lat > 50 && lat < 59) land = Math.max(land, 0.85);
+        else if (lon > 5 && lon < 32 && lat > 56 && lat < 71) land = Math.max(land, 0.9);
+        else if (lon > 8 && lon < 18 && lat > 37 && lat < 46) land = Math.max(land, 0.9);
+        else land = Math.max(land, 0.95);
+      }
+      // Asia
+      if (lon > 40 && lon < 175 && lat > 8 && lat < 78) {
+        if (lat > 45) land = Math.max(land, 0.95);
+        else if (lon > 65 && lon < 125 && lat > 18 && lat < 45) land = Math.max(land, 0.95);
+        else if (lon > 68 && lon < 92 && lat > 8 && lat < 32) {
+          if (lat > 8 + Math.abs(lon - 80) * 0.9) land = Math.max(land, 0.95);
+        } else if (lon > 35 && lon < 60 && lat > 12 && lat < 33) land = Math.max(land, 0.9);
+        else if (lon > 98 && lon < 110 && lat > 8 && lat < 22) land = Math.max(land, 0.85);
+      }
+      // Australia & New Zealand
+      if (lon > 112 && lon < 155 && lat > -42 && lat < -10) land = Math.max(land, 0.95);
+      if (lon > 166 && lon < 178 && lat > -47 && lat < -34) land = Math.max(land, 0.85);
+      // Japan
+      if (lon > 129 && lon < 146 && lat > 30 && lat < 46) land = Math.max(land, 0.85);
+      // Madagascar
+      if (lon > 43 && lon < 51 && lat > -26 && lat < -12) land = Math.max(land, 0.85);
+      // Indonesia & Philippines archipelago
+      if (lon > 95 && lon < 142 && lat > -11 && lat < 18) {
+        const isl = fbm(u * 36, v * 28, 3);
+        if (isl > 0.46) land = Math.max(land, 0.85);
+      }
+
+      // Fractal coastline modulation
+      const coastNoise = fbm(u * 22, v * 16, 5) * 0.42 - 0.21;
+      const microNoise = fbm(u * 64, v * 48, 3) * 0.12 - 0.06;
+      const totalLand = land + coastNoise + microNoise;
+
+      if (totalLand > 0.48) {
+        const elev = clamp((totalLand - 0.48) * 3.2, 0, 1);
+        
+        // Deserts (Sahara, Arabia, Gobi, Australian Outback)
+        const isSahara = (lat > 14 && lat < 32 && lon > -15 && lon < 55);
+        const isArabia = (lat > 12 && lat < 32 && lon > 35 && lon < 60);
+        const isGobi = (lat > 36 && lat < 46 && lon > 85 && lon < 115);
+        const isAussieDesert = (lat > -32 && lat < -18 && lon > 118 && lon < 142);
+        const isDesert = isSahara || isArabia || isGobi || isAussieDesert || (absLat > 18 && absLat < 34 && fbm(u * 14, v * 10, 3) > 0.52);
 
         if (isDesert) {
-          const dC = mix([195, 155, 95], [160, 120, 65], landFactor);
-          return [dC[0], dC[1], dC[2], 255];
+          const sandNoise = fbm(u * 32, v * 24, 3) * 0.2;
+          const sandCol = isAussieDesert
+            ? mix([205, 102, 52], [175, 75, 36], sandNoise + elev * 0.5)
+            : mix([218, 178, 115], [182, 142, 85], sandNoise + elev * 0.5);
+          return [sandCol[0], sandCol[1], sandCol[2], 255];
         }
 
-        const vegNoise = fbm(u * 12, v * 10, 4);
-        const green = mix([45, 110, 52], [30, 80, 38], landFactor * 0.7 + vegNoise * 0.3);
-        if (landFactor > 0.75) {
-          const mtn = mix(green, [115, 95, 75], (landFactor - 0.75) * 4.0);
-          return [mtn[0], mtn[1], mtn[2], 255];
+        // Mountains with Snow Caps (Himalayas, Andes, Rockies, Alps)
+        const isHimalayas = (lat > 26 && lat < 36 && lon > 74 && lon < 102);
+        const isAndes = (lon > -76 && lon < -67 && lat > -52 && lat < 8);
+        const isRockies = (lon > -122 && lon < -105 && lat > 32 && lat < 60);
+        const isAlps = (lon > 5 && lon < 16 && lat > 43 && lat < 48);
+        const isMountain = (isHimalayas || isAndes || isRockies || isAlps || elev > 0.78);
+
+        if (isMountain && elev > 0.62) {
+          const mtnFactor = clamp((elev - 0.62) * 3.0, 0, 1);
+          const snowLine = isHimalayas ? 0.75 : (absLat > 45 ? 0.65 : 0.82);
+          if (elev > snowLine) {
+            return [242, 246, 252, 255];
+          }
+          const mtnCol = mix([68, 62, 54], [115, 105, 92], mtnFactor);
+          return [mtnCol[0], mtnCol[1], mtnCol[2], 255];
         }
-        return [green[0], green[1], green[2], 255];
+
+        // Tropical Rainforests (Amazon, Congo, SE Asia)
+        const isRainforest = (absLat < 12 && (lon < -48 && lon > -78 || lon > 10 && lon < 32 || lon > 95 && lon < 140));
+        if (isRainforest) {
+          const veg = mix([22, 68, 26], [32, 92, 38], fbm(u * 28, v * 20, 3));
+          return [veg[0], veg[1], veg[2], 255];
+        }
+
+        // Temperate Forests & Grasslands
+        const vegT = fbm(u * 24, v * 18, 4);
+        const grass = mix([48, 108, 44], [92, 122, 52], vegT);
+        return [grass[0], grass[1], grass[2], 255];
       }
 
-      const coastDist = clamp((0.52 - landMask) * 12.0, 0, 1);
-      const deepOcean = [14, 42, 92];
-      const shallowWater = [28, 85, 135];
-      const oceanColor = mix(shallowWater, deepOcean, coastDist);
+      // Ocean with Shallow Continental Shelves & Coral Reefs
+      const coastDist = clamp((0.48 - totalLand) * 16.0, 0, 1);
+      const deepAbyss = [6, 22, 52];
+      const openOcean = [12, 45, 98];
+      const shallowShelf = [22, 115, 155];
+      const lagoonTurquoise = [32, 172, 192];
+
+      const oceanColor = coastDist < 0.22
+        ? mix(lagoonTurquoise, shallowShelf, coastDist / 0.22)
+        : mix(shallowShelf, mix(openOcean, deepAbyss, clamp((coastDist - 0.22) * 1.5, 0, 1)), (coastDist - 0.22) / 0.78);
+
       return [oceanColor[0], oceanColor[1], oceanColor[2], 255];
     });
   }
 
-  static _earthClouds() {
+  static _earthSpecular() {
     return makeTexture(1024, 512, (u, v) => {
-      const n = warp(u * 5.2, v * 3.6, 2.4, 5);
-      const bands = Math.sin(v * Math.PI * 4.0) * 0.1;
-      const cloud = clamp((n + bands - 0.46) * 2.3, 0, 1);
-      const a = clamp(cloud * 230, 0, 240);
+      const lon = (u - 0.5) * 360;
+      const lat = (0.5 - v) * 180;
+      if (lat < -62) return [90, 90, 90, 255];
+      let land = 0;
+      if (lon > -168 && lon < -52 && lat > 12 && lat < 72) land = 0.95;
+      if (lon > -82 && lon < -34 && lat > -56 && lat < 13) land = 0.95;
+      if (lon > -18 && lon < 52 && lat > -35 && lat < 37) land = 0.95;
+      if (lon > -12 && lon < 45 && lat > 35 && lat < 72) land = 0.95;
+      if (lon > 40 && lon < 175 && lat > 8 && lat < 78) land = 0.95;
+      if (lon > 112 && lon < 155 && lat > -42 && lat < -10) land = 0.95;
+      const noise = fbm(u * 22, v * 16, 5) * 0.42 - 0.21;
+      const isOcean = (land + noise) <= 0.48;
+      const val = isOcean ? 255 : 6;
+      return [val, val, val, 255];
+    });
+  }
+
+  static _earthNight() {
+    return makeTexture(1024, 512, (u, v) => {
+      const lon = (u - 0.5) * 360;
+      const lat = (0.5 - v) * 180;
+      if (lat < -60 || lat > 72) return [0, 0, 0, 255];
+
+      let popDensity = 0;
+      if (lon > -85 && lon < -70 && lat > 32 && lat < 44) popDensity += 0.95;
+      if (lon > -92 && lon < -80 && lat > 38 && lat < 45) popDensity += 0.85;
+      if (lon > -124 && lon < -115 && lat > 32 && lat < 40) popDensity += 0.90;
+      if (lon > -100 && lon < -75 && lat > 26 && lat < 35) popDensity += 0.75;
+      if (lon > -6 && lon < 24 && lat > 45 && lat < 58) popDensity += 0.95;
+      if (lon > 8 && lon < 18 && lat > 38 && lat < 46) popDensity += 0.85;
+      if (lon > -9 && lon < 3 && lat > 37 && lat < 43) popDensity += 0.75;
+      if (lon > 28 && lon < 42 && lat > 52 && lat < 60) popDensity += 0.70;
+      if (lon > 130 && lon < 142 && lat > 32 && lat < 38) popDensity += 0.98;
+      if (lon > 114 && lon < 123 && lat > 28 && lat < 40) popDensity += 0.95;
+      if (lon > 110 && lon < 118 && lat > 21 && lat < 25) popDensity += 0.95;
+      if (lon > 126 && lon < 130 && lat > 35 && lat < 38) popDensity += 0.90;
+      if (lon > 120 && lon < 122 && lat > 22 && lat < 25) popDensity += 0.90;
+      if (lon > 72 && lon < 88 && lat > 18 && lat < 30) popDensity += 0.90;
+      if (lon > 72 && lon < 78 && lat > 12 && lat < 20) popDensity += 0.85;
+      if (lon > 30 && lon < 33 && lat > 24 && lat < 32) popDensity += 0.98;
+      if (lon > -50 && lon < -42 && lat > -25 && lat < -21) popDensity += 0.85;
+      if (lon > -60 && lon < -56 && lat > -36 && lat < -33) popDensity += 0.80;
+      if (lon > -102 && lon < -97 && lat > 18 && lat < 21) popDensity += 0.85;
+      if (lon > 144 && lon < 154 && lat > -38 && lat < -27) popDensity += 0.80;
+
+      if (popDensity <= 0) return [0, 0, 0, 255];
+
+      const flick = hash2(Math.floor(u * 180), Math.floor(v * 90));
+      const micro = hash2(Math.floor(u * 450), Math.floor(v * 225));
+      if (flick > 0.42 && micro > 0.35) {
+        const intensity = clamp(popDensity * ((flick - 0.42) * 2.2) * (micro * 1.5), 0, 1);
+        const r = clamp(255 * intensity, 0, 255);
+        const g = clamp(195 * intensity, 0, 255);
+        const b = clamp(75 * intensity, 0, 255);
+        return [r, g, b, 255];
+      }
+      return [0, 0, 0, 255];
+    });
+  }
+
+  static _earthClouds() {
+    return makeTexture(2048, 1024, (u, v) => {
+      const lat = (0.5 - v) * Math.PI;
+      const absLat = Math.abs(lat);
+      const itcz = Math.exp(-Math.pow(lat * 4.5, 2.0)) * 0.45;
+      const stormBelt = Math.exp(-Math.pow((absLat - 0.78) * 3.2, 2.0));
+      const cycloneNoise = warp(u * 8 + Math.sin(v * 12) * 0.5, v * 5, 2.8, 6);
+      const cirrus = fbm(u * 28 + cycloneNoise * 2.0, v * 20, 3) * 0.25;
+
+      const totalCloud = (cycloneNoise * stormBelt * 1.2) + itcz + cirrus;
+      const density = clamp((totalCloud - 0.42) * 2.4, 0, 1);
+      const a = clamp(density * 240, 0, 240);
       return [255, 255, 255, a];
     });
   }
@@ -1247,8 +1411,180 @@ class TextureFactory {
 }
 
 /* ===========================================================================
-   8. ATMOSPHERIC SCATTERING SHADER (Fresnel rim lit by the Sun)
+   8. ATMOSPHERIC SCATTERING & REALISTIC PLANETARY SHADERS
    =========================================================================== */
+function makeEarthMaterial(dayTex, nightTex, specTex, cloudsTex) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      tDay: { value: dayTex },
+      tNight: { value: nightTex },
+      tSpecular: { value: specTex },
+      tClouds: { value: cloudsTex },
+      uSunDir: { value: new THREE.Vector3(0, 0, 0) },
+      uCloudAngle: { value: 0.0 }
+    },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        vNormal = normalize(mat3(modelMatrix) * normal);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec2 vUv;
+
+      uniform sampler2D tDay;
+      uniform sampler2D tNight;
+      uniform sampler2D tSpecular;
+      uniform sampler2D tClouds;
+      uniform vec3 uSunDir;
+      uniform float uCloudAngle;
+
+      void main() {
+        vec3 N = normalize(vNormal);
+        vec3 L = normalize(uSunDir - vWorldPos);
+        vec3 V = normalize(cameraPosition - vWorldPos);
+        vec3 H = normalize(L + V);
+
+        float NdotL = dot(N, L);
+        float dayFactor = smoothstep(-0.15, 0.25, NdotL);
+        float nightFactor = 1.0 - smoothstep(-0.20, 0.10, NdotL);
+        float twilight = exp(-pow((NdotL - 0.04) * 8.0, 2.0));
+
+        vec4 dayCol = texture2D(tDay, vUv);
+        vec4 nightCol = texture2D(tNight, vUv);
+        float specMask = texture2D(tSpecular, vUv).r;
+
+        vec2 cloudUv = vec2(fract(vUv.x + uCloudAngle), vUv.y);
+        vec2 shadowOffset = -L.xy * 0.004;
+        float cloudDensity = texture2D(tClouds, cloudUv + shadowOffset).a;
+        float cloudShadow = 1.0 - cloudDensity * 0.55 * dayFactor;
+
+        // Ocean Specular Reflection (Sun Glint)
+        float specAngle = max(dot(N, H), 0.0);
+        float specular = pow(specAngle, 56.0) * specMask * smoothstep(0.0, 0.25, NdotL);
+        vec3 sunGlint = vec3(1.0, 0.96, 0.88) * specular * 2.0;
+
+        vec3 diffuseDay = dayCol.rgb * (clamp(NdotL, 0.0, 1.0) * 1.08 + 0.16) * cloudShadow;
+        vec3 twilightCol = vec3(0.95, 0.42, 0.15) * twilight * 0.4;
+        vec3 cityLights = nightCol.rgb * nightFactor * 2.4;
+
+        vec3 finalCol = diffuseDay * dayFactor + sunGlint + twilightCol + cityLights + dayCol.rgb * vec3(0.04, 0.07, 0.12);
+        gl_FragColor = vec4(finalCol, 1.0);
+      }
+    `
+  });
+}
+
+function makeEarthCloudsMaterial(cloudsTex) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      tClouds: { value: cloudsTex },
+      uSunDir: { value: new THREE.Vector3(0, 0, 0) },
+      uCloudAngle: { value: 0.0 }
+    },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        vNormal = normalize(mat3(modelMatrix) * normal);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec2 vUv;
+
+      uniform sampler2D tClouds;
+      uniform vec3 uSunDir;
+      uniform float uCloudAngle;
+
+      void main() {
+        vec3 N = normalize(vNormal);
+        vec3 L = normalize(uSunDir - vWorldPos);
+        float NdotL = dot(N, L);
+
+        vec2 uv = vec2(fract(vUv.x + uCloudAngle), vUv.y);
+        vec4 cloud = texture2D(tClouds, uv);
+
+        float dayLight = clamp(NdotL * 1.15 + 0.18, 0.08, 1.2);
+        float twilight = exp(-pow((NdotL - 0.04) * 7.0, 2.0));
+        vec3 cloudColor = mix(vec3(0.95, 0.98, 1.0) * dayLight, vec3(1.0, 0.58, 0.28), twilight * 0.65);
+
+        float alpha = cloud.a * (0.35 + 0.65 * smoothstep(-0.25, 0.2, NdotL));
+        gl_FragColor = vec4(cloudColor, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.NormalBlending
+  });
+}
+
+function makeEarthAtmosphereMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uSunDir: { value: new THREE.Vector3(0, 0, 0) },
+      uColorDay: { value: new THREE.Color(0x3898ff) },
+      uColorSunset: { value: new THREE.Color(0xff6224) }
+    },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec3 vViewPos;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+        vViewPos = (modelViewMatrix * vec4(position, 1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec3 vViewPos;
+
+      uniform vec3 uSunDir;
+      uniform vec3 uColorDay;
+      uniform vec3 uColorSunset;
+
+      void main() {
+        vec3 N = normalize(vNormal);
+        vec3 V = normalize(-vViewPos);
+        vec3 L = normalize(uSunDir - vWorldPos);
+
+        float viewDot = max(dot(N, V), 0.0);
+        float fresnel = pow(1.0 - viewDot, 3.6);
+
+        float NdotL = dot(N, L);
+        float daySide = smoothstep(-0.15, 0.30, NdotL);
+        float twilight = exp(-pow((NdotL - 0.02) * 6.0, 2.0));
+
+        vec3 atmosColor = mix(uColorDay, uColorSunset, twilight);
+        float alpha = fresnel * (daySide * 1.15 + twilight * 0.95);
+
+        gl_FragColor = vec4(atmosColor, clamp(alpha, 0.0, 1.0));
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.FrontSide
+  });
+}
+
 function makeAtmosphereMaterial(colorHex) {
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -1397,13 +1733,35 @@ class CelestialBody {
   build(scene, scale) {
     const data = this.data;
     this.radiusScene = data.kind === 'star' ? scale.sunSize() : (data.parent ? scale.moonRadius(data.radius) : scale.radius(data.radius));
-    const geo = new THREE.SphereGeometry(this.radiusScene, data.kind === 'star' ? 64 : 48, data.kind === 'star' ? 64 : 48);
+    const geo = new THREE.SphereGeometry(this.radiusScene, data.kind === 'star' ? 64 : (this.key === 'earth' ? 64 : 48), data.kind === 'star' ? 64 : (this.key === 'earth' ? 64 : 48));
 
     let mat, mesh;
     if (data.kind === 'star') {
       mat = new THREE.MeshBasicMaterial({ map: TextureFactory.get(data.texture), toneMapped: false });
       mesh = new THREE.Mesh(geo, mat);
       mesh.isSun = true;
+    } else if (this.key === 'earth') {
+      const dayTex = TextureFactory.get('earth');
+      const nightTex = TextureFactory._earthNight();
+      const specTex = TextureFactory._earthSpecular();
+      const cloudsTex = TextureFactory._earthClouds();
+
+      this.earthMat = makeEarthMaterial(dayTex, nightTex, specTex, cloudsTex);
+      mesh = new THREE.Mesh(geo, this.earthMat);
+
+      // Elevated Cloud Shell
+      const cg = new THREE.SphereGeometry(this.radiusScene * 1.012, 64, 64);
+      this.cloudsMat = makeEarthCloudsMaterial(cloudsTex);
+      this.clouds = new THREE.Mesh(cg, this.cloudsMat);
+      this.clouds.userData.body = this;
+      mesh.add(this.clouds);
+
+      // Rayleigh Atmosphere Halo
+      const ag = new THREE.SphereGeometry(this.radiusScene * 1.036, 64, 64);
+      this.atmosphereMat = makeEarthAtmosphereMaterial();
+      this.atmosphere = new THREE.Mesh(ag, this.atmosphereMat);
+      this.atmosphere.userData.body = this;
+      mesh.add(this.atmosphere);
     } else if (data.parent) {
       mat = new THREE.MeshStandardMaterial({
         map: TextureFactory.get(data.texture),
@@ -1415,7 +1773,7 @@ class CelestialBody {
       const tex = TextureFactory.get(data.texture);
       mat = new THREE.MeshStandardMaterial({
         map: tex,
-        roughness: (this.key === 'earth' ? 0.60 : (['jupiter', 'saturn', 'uranus', 'neptune', 'venus'].includes(this.key) ? 0.90 : 0.82)),
+        roughness: (['jupiter', 'saturn', 'uranus', 'neptune', 'venus'].includes(this.key) ? 0.90 : 0.82),
         metalness: 0.02
       });
       mesh = new THREE.Mesh(geo, mat);
@@ -1427,20 +1785,8 @@ class CelestialBody {
     scene.add(mesh);
     this.mesh = mesh;
 
-    // Earth Clouds
-    if (this.key === 'earth') {
-      const cg = new THREE.SphereGeometry(this.radiusScene * 1.015, 48, 48);
-      const cm = new THREE.MeshStandardMaterial({
-        map: TextureFactory._earthClouds(), transparent: true, opacity: 0.6,
-        depthWrite: false, blending: THREE.NormalBlending
-      });
-      this.clouds = new THREE.Mesh(cg, cm);
-      this.clouds.userData.body = this;
-      mesh.add(this.clouds);
-    }
-
-    // Atmosphere Rim
-    if (data.atmos) {
+    // Atmosphere Rim for other planets (e.g. Venus, Mars)
+    if (data.atmos && this.key !== 'earth') {
       const ag = new THREE.SphereGeometry(this.radiusScene * 1.07, 48, 48);
       this.atmosphereMat = makeAtmosphereMaterial(data.atmos);
       this.atmosphere = new THREE.Mesh(ag, this.atmosphereMat);
@@ -2116,10 +2462,16 @@ class SolarSystem {
       b._rParentKm = mp.r;
     }
 
-    // Atmosphere Sun uniform
+    // Atmosphere & Earth Sun uniforms
+    const sunPos = this.bodies.sun.worldPos;
     for (const key in this.bodies) {
       const b = this.bodies[key];
-      if (b.atmosphereMat) b.atmosphereMat.uniforms.uSun.value.copy(this.bodies.sun.worldPos);
+      if (b.atmosphereMat) {
+        if (b.atmosphereMat.uniforms.uSun) b.atmosphereMat.uniforms.uSun.value.copy(sunPos);
+        if (b.atmosphereMat.uniforms.uSunDir) b.atmosphereMat.uniforms.uSunDir.value.copy(sunPos);
+      }
+      if (b.earthMat && b.earthMat.uniforms.uSunDir) b.earthMat.uniforms.uSunDir.value.copy(sunPos);
+      if (b.cloudsMat && b.cloudsMat.uniforms.uSunDir) b.cloudsMat.uniforms.uSunDir.value.copy(sunPos);
     }
 
     if (this.belt) {
@@ -2417,8 +2769,15 @@ class SolarSystem {
       b.mesh.rotation.y = (simDays * 24 / rotHours) * 2 * Math.PI;
       if (b._tiltAxis) b.mesh.rotation.z = b._tiltAxis * DEG;
     }
-    if (this.bodies.earth && this.bodies.earth.clouds) {
-      this.bodies.earth.clouds.rotation.y += dtReal * 0.03;
+    if (this.bodies.earth) {
+      const eb = this.bodies.earth;
+      if (eb.clouds) eb.clouds.rotation.y += dtReal * 0.008;
+      if (eb.earthMat && eb.earthMat.uniforms.uCloudAngle) {
+        eb.earthMat.uniforms.uCloudAngle.value += dtReal * 0.0008;
+        if (eb.cloudsMat && eb.cloudsMat.uniforms.uCloudAngle) {
+          eb.cloudsMat.uniforms.uCloudAngle.value = eb.earthMat.uniforms.uCloudAngle.value;
+        }
+      }
     }
 
     // Particles & Camera & Impact
