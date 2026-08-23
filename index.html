@@ -473,23 +473,23 @@
 <div id="left" class="hud">
   <button id="collapseBtn" title="Toggle Sidebar">‹</button>
   <div class="panel-tabs" id="leftTabs">
-    <button class="tab-btn active" data-tab="planets">🪐 Planetas</button>
+    <button class="tab-btn active" data-tab="planets">🪐 Planets</button>
     <button class="tab-btn" data-tab="neos">☄️ NEOs</button>
-    <button class="tab-btn" data-tab="scenarios">🚀 Misiones</button>
+    <button class="tab-btn" data-tab="scenarios">🚀 Missions</button>
   </div>
   <div id="leftBody">
     <div id="tabPlanets" class="tab-pane active">
-      <div class="panel-head"><span>Cuerpos Celestes</span><b id="objCount">0</b></div>
+      <div class="panel-head"><span>Celestial Bodies</span><b id="objCount">0</b></div>
       <div id="objList"></div>
       <div id="qualitySection"></div>
       <div id="exportSection"></div>
     </div>
     <div id="tabNeos" class="tab-pane">
-      <div class="panel-head"><span>Asteroides Cercanos</span><b id="neoCount">4</b></div>
+      <div class="panel-head"><span>Near-Earth Asteroids</span><b id="neoCount">4</b></div>
       <div id="neoList"></div>
     </div>
     <div id="tabScenarios" class="tab-pane">
-      <div class="panel-head"><span>Misiones y Escenarios</span></div>
+      <div class="panel-head"><span>Mission Scenarios</span></div>
       <div id="scenariosList"></div>
     </div>
   </div>
@@ -2179,10 +2179,10 @@ const KNOWN_NEOS = {
     approachElev: 22,
     impactAngle: 42,
     errorMarginKm: 3400,
-    torinoScale: '0 (Histórico: Torino 4)',
+    torinoScale: '0 (Historically Torino 4)',
     palermoScale: '-2.84',
     hazard: true,
-    description: 'Pasa a tan solo 31,600 km de la superficie de la Tierra el 13 de abril de 2029 (más cerca que los satélites geoestacionarios a 35,786 km). Las mareas gravitatorias terrestres alterarán su rotación.'
+    description: 'Passes within 31,600 km of Earth on April 13, 2029 (closer than geostationary satellites at 35,786 km). Earth tidal gravitational forces will reshape its spin state.'
   },
   bennu: {
     key: 'bennu',
@@ -2199,10 +2199,10 @@ const KNOWN_NEOS = {
     approachElev: 38,
     impactAngle: 48,
     errorMarginKm: 8500,
-    torinoScale: '0 (Probabilidad acumulada 1 en 1,750 hacia 2182)',
+    torinoScale: '0 (Cumulative Impact Prob: 1 in 1,750 by 2182)',
     palermoScale: '-1.41',
     hazard: true,
-    description: 'Objetivo de la misión NASA OSIRIS-REx. Asteroide carbonáceo rico en orgánicos y minerales hidratados con posibles resonancias gravitatorias en 2060 y 2182.'
+    description: 'Target of the NASA OSIRIS-REx sample return mission. Carbonaceous rubble-pile asteroid with potential gravitational keyhole encounters in 2060 and 2182.'
   },
   da1950: {
     key: 'da1950',
@@ -2219,14 +2219,14 @@ const KNOWN_NEOS = {
     approachElev: 18,
     impactAngle: 36,
     errorMarginKm: 12400,
-    torinoScale: '0 (Históricamente el mayor riesgo Palermo)',
+    torinoScale: '0 (Historically highest Palermo risk)',
     palermoScale: '-1.81',
     hazard: true,
-    description: 'Asteroide masivo de 1.3 km de diámetro metálico-rocoso. Un impacto liberaría más de 155,000 Megatones provocando invierno nuclear y megatsunamis globales.'
+    description: 'Massive 1.3 km kilometer-class metallic-stony asteroid. A direct impact would release over 155,000 Megatones causing global climatic disruption and megatsunamis.'
   },
   dw2023: {
     key: 'dw2023',
-    name: '2023 DW (San Valentín 2046)',
+    name: '2023 DW (Valentine 2046)',
     designation: '2023 DW',
     closeApproachDate: { year: 2046, month: 2, day: 14, hour: 19, min: 45, sec: 0 },
     missDistanceKm: 1800000,
@@ -2239,10 +2239,10 @@ const KNOWN_NEOS = {
     approachElev: 45,
     impactAngle: 50,
     errorMarginKm: 22000,
-    torinoScale: '0 (Inicialmente Torino 1)',
+    torinoScale: '0 (Formerly Torino 1)',
     palermoScale: '-2.12',
     hazard: false,
-    description: 'Descubierto en 2023 con riesgo inicial de 1 en 560 para San Valentín de 2046, descartado posteriormente tras seguimiento de radar de alta resolución.'
+    description: 'Discovered in Feb 2023 with an initial 1-in-560 impact probability for Valentine’s Day 2046, later safely ruled out following high-precision radar refinement.'
   }
 };
 
@@ -2273,6 +2273,10 @@ class Asteroid {
     this.approachElev = params.approachElev || 25;
     this.errorMarginKm = params.errorMarginKm || 0;
     this.dir = this._travelDir();
+  }
+
+  get worldPos() {
+    return this.mesh ? this.mesh.position : new THREE.Vector3();
   }
 
   _travelDir() {
@@ -2866,7 +2870,10 @@ class SolarSystem {
 
     const ev = new ImpactEvent(this, a);
     a.event = ev;
+    a.radiusScene = visSize;
+    a.mesh.userData = { asteroid: a, event: ev };
     this.events.push(ev);
+    if (this.ui) this.ui.refreshObjectList();
     return ev;
   }
 
@@ -2879,11 +2886,14 @@ class SolarSystem {
     if (ev.asteroid.head) this.scene.remove(ev.asteroid.head);
     if (ev.asteroid.corridor) this.scene.remove(ev.asteroid.corridor);
     if (ev.asteroid.corridorLines) this.scene.remove(ev.asteroid.corridorLines);
-    if (ev.impactSim && this.activeImpact === ev.impactSim) {
+    if (ev.impactSim) ev.impactSim.dispose();
+    if (this.activeImpact && this.activeImpact === ev.impactSim) {
       this.activeImpact = null;
       this.cam.controls.enabled = true;
     }
     this.events.splice(idx, 1);
+    if (this.selectedKey === 'event:' + key) this.deselect();
+    if (this.ui) this.ui.refreshObjectList();
   }
 
   startCinematic(event) {
@@ -2941,12 +2951,15 @@ class SolarSystem {
       y: -(e.clientY - rect.top) / rect.height * 2 + 1
     }, this.camera);
 
-    const meshes = [...this.order.map(k => this.bodies[k].mesh), ...Object.values(this.moons).map(m => m.mesh)];
+    const astMeshes = this.events.filter(x => x.asteroid && x.asteroid.mesh).map(x => x.asteroid.mesh);
+    const meshes = [...this.order.map(k => this.bodies[k].mesh), ...Object.values(this.moons).map(m => m.mesh), ...astMeshes];
     const hits = this._raycaster.intersectObjects(meshes, true);
     if (hits.length) {
       let obj = hits[0].object;
-      while (obj && !obj.userData.body) obj = obj.parent;
-      if (obj && obj.userData.body) {
+      while (obj && !obj.userData.body && !obj.userData.asteroid) obj = obj.parent;
+      if (obj && obj.userData.asteroid) {
+        this.selectAsteroid(obj.userData.event.key);
+      } else if (obj && obj.userData.body) {
         this.selectBody(obj.userData.body.key);
       }
     } else {
@@ -2961,12 +2974,16 @@ class SolarSystem {
       y: -(e.clientY - rect.top) / rect.height * 2 + 1
     }, this.camera);
 
-    const meshes = [...this.order.map(k => this.bodies[k].mesh), ...Object.values(this.moons).map(m => m.mesh)];
+    const astMeshes = this.events.filter(x => x.asteroid && x.asteroid.mesh).map(x => x.asteroid.mesh);
+    const meshes = [...this.order.map(k => this.bodies[k].mesh), ...Object.values(this.moons).map(m => m.mesh), ...astMeshes];
     const hits = this._raycaster.intersectObjects(meshes, true);
     if (hits.length) {
       let obj = hits[0].object;
-      while (obj && !obj.userData.body) obj = obj.parent;
-      if (obj && obj.userData.body) {
+      while (obj && !obj.userData.body && !obj.userData.asteroid) obj = obj.parent;
+      if (obj && obj.userData.asteroid) {
+        this.selectAsteroid(obj.userData.event.key);
+        this.focusSelected();
+      } else if (obj && obj.userData.body) {
         this.selectBody(obj.userData.body.key);
         this.focusSelected();
       }
@@ -2979,9 +2996,20 @@ class SolarSystem {
       x: (e.clientX - rect.left) / rect.width * 2 - 1,
       y: -(e.clientY - rect.top) / rect.height * 2 + 1
     }, this.camera);
-    const meshes = [...this.order.map(k => this.bodies[k].mesh), ...Object.values(this.moons).map(m => m.mesh)];
+    const astMeshes = this.events.filter(x => x.asteroid && x.asteroid.mesh).map(x => x.asteroid.mesh);
+    const meshes = [...this.order.map(k => this.bodies[k].mesh), ...Object.values(this.moons).map(m => m.mesh), ...astMeshes];
     const hits = this._raycaster.intersectObjects(meshes, true);
     this.domElement.style.cursor = hits.length ? 'pointer' : 'grab';
+  }
+
+  selectAsteroid(eventKey) {
+    this.selectedKey = 'event:' + eventKey;
+    const ev = this.events.find(e => e.key === eventKey);
+    if (ev && ev.asteroid) {
+      this.cam.setTracking(ev.asteroid);
+    }
+    this.ui.renderInfo(this.selectedKey);
+    this.ui.refreshObjectList();
   }
 
   selectBody(key) {
@@ -2995,6 +3023,16 @@ class SolarSystem {
 
   focusSelected() {
     if (!this.selectedKey) return;
+    if (this.selectedKey.startsWith('event:')) {
+      const evKey = this.selectedKey.slice(6);
+      const ev = this.events.find(e => e.key === evKey);
+      if (ev && ev.asteroid && ev.asteroid.mesh) {
+        const a = ev.asteroid;
+        const dist = Math.max(a.radiusScene * 4.5, 0.45);
+        this.cam.focus(a.mesh.position, { size: a.radiusScene, dist: dist, duration: 1000, body: a });
+      }
+      return;
+    }
     const b = this.bodies[this.selectedKey] || this.moons[this.selectedKey];
     if (b) this.cam.focus(b.worldPos, { size: b.radiusScene, dist: b.radiusScene * 4.2, duration: 1200, body: b });
   }
@@ -3325,8 +3363,25 @@ class UIManager {
 
   refreshObjectList() {
     const list = document.getElementById('objList');
+    if (!list) return;
     const s = this.s;
     let html = '';
+
+    // Active Impactors / Scheduled Asteroids
+    if (s.events && s.events.length > 0) {
+      html += '<div class="obj-group" style="color:#f87171;">Active Impactors / Asteroids</div>';
+      for (const ev of s.events) {
+        const a = ev.asteroid;
+        const sel = (s.selectedKey === 'event:' + ev.key) ? 'selected' : '';
+        const name = a.name || `${a.diameter}m ${a.material} Impactor`;
+        html += `<div class="obj-row ${sel}" data-event="${ev.key}">
+          <span class="sw" style="background:#f87171; box-shadow:0 0 8px rgba(248,113,113,0.7)"></span>
+          <span class="nm">${name}</span>
+          <span class="ty" style="color:var(--danger)">Asteroid</span>
+        </div>`;
+      }
+    }
+
     html += '<div class="obj-group">Central Star</div>';
     html += this._objRow('sun');
     html += '<div class="obj-group">Planets</div>';
@@ -3336,12 +3391,20 @@ class UIManager {
     html += '<div class="obj-group">Major Moons</div>';
     for (const k in s.moons) html += this._objRow(k);
     list.innerHTML = html;
-    document.getElementById('objCount').textContent = s.order.length + Object.keys(s.moons).length;
+    document.getElementById('objCount').textContent = s.order.length + Object.keys(s.moons).length + s.events.length;
 
-    list.querySelectorAll('.obj-row').forEach(row => {
+    list.querySelectorAll('.obj-row[data-key]').forEach(row => {
       row.onclick = () => {
         const key = row.dataset.key;
         s.selectBody(key);
+        s.focusSelected();
+      };
+    });
+
+    list.querySelectorAll('.obj-row[data-event]').forEach(row => {
+      row.onclick = () => {
+        const evKey = row.dataset.event;
+        s.selectAsteroid(evKey);
         s.focusSelected();
       };
     });
@@ -3382,15 +3445,15 @@ class UIManager {
           <span class="neo-tag ${neo.hazard ? 'hazard' : ''}">${neo.hazard ? 'PHA Hazard' : 'Close Flyby'}</span>
         </div>
         <div class="neo-details">
-          <b>Paso cercano:</b> ${dateStr}<br>
-          <b>Distancia mínima:</b> ${distStr}<br>
-          <b>Diámetro:</b> ~${neo.diameter} m · <b>Velocidad:</b> ${neo.velocityKmS} km/s · <b>Tipo:</b> ${neo.material}<br>
-          <div class="neo-corridor"><b>Margen de Error (3σ):</b> ±${fmtNum(neo.errorMarginKm)} km</div>
+          <b>Close Approach:</b> ${dateStr}<br>
+          <b>Miss Distance:</b> ${distStr}<br>
+          <b>Diameter:</b> ~${neo.diameter} m · <b>Speed:</b> ${neo.velocityKmS} km/s · <b>Type:</b> ${neo.material}<br>
+          <div class="neo-corridor"><b>3σ Error Corridor:</b> ±${fmtNum(neo.errorMarginKm)} km</div>
           <div style="font-size:8.5px; color:var(--text-muted); margin-top:2px;">${neo.description}</div>
         </div>
         <div class="neo-actions">
-          <button class="btn btn-view-traj" title="Ver trayectoria y cono de incertidumbre 3σ">🔍 Trayectoria</button>
-          <button class="btn btn-impact" title="Agendar y simular colisión contra la Tierra">💥 Simular Impacto</button>
+          <button class="btn btn-view-traj" title="View trajectory and 3σ uncertainty error corridor">🔍 Trajectory</button>
+          <button class="btn btn-impact" title="Schedule and simulate Earth impact scenario">💥 Simulate Impact</button>
         </div>
       `;
 
@@ -3410,8 +3473,6 @@ class UIManager {
     let simDay = d.day;
     if (simHour < 0) { simHour += 24; simDay -= 1; }
     this.setDate(d.year, d.month, simDay, simHour, d.min, d.sec || 0);
-    s.selectBody('earth');
-    s.focusSelected();
 
     let ev = s.events.find(e => e.neoKey === neoKey);
     if (!ev) {
@@ -3427,11 +3488,14 @@ class UIManager {
         approachElev: neo.approachElev,
         impactAngle: neo.impactAngle,
         errorMarginKm: neo.errorMarginKm,
+        name: neo.name,
         neoKey: neoKey
       });
       this.refreshEventList();
     }
-    this.toast(`Visualizando trayectoria y cono de incertidumbre (±${fmtNum(neo.errorMarginKm)} km) de ${neo.name}`);
+    s.selectAsteroid(ev.key);
+    s.focusSelected();
+    this.toast(`Viewing trajectory & 3σ error corridor (±${fmtNum(neo.errorMarginKm)} km) for ${neo.name}`);
   }
 
   scheduleNEOImpact(neoKey, isPreview = false) {
@@ -3452,6 +3516,7 @@ class UIManager {
       approachElev: neo.approachElev,
       impactAngle: neo.impactAngle,
       errorMarginKm: neo.errorMarginKm,
+      name: neo.name,
       neoKey: neoKey
     });
     this.refreshEventList();
@@ -3460,7 +3525,8 @@ class UIManager {
       this.previewEvent(ev);
     } else {
       this.jumpToEvent(ev);
-      this.toast(`Simulación de impacto agendada contra la Tierra: ${neo.name}`);
+      s.selectAsteroid(ev.key);
+      this.toast(`Scheduled Earth impact simulation: ${neo.name}`);
     }
   }
 
@@ -3473,13 +3539,13 @@ class UIManager {
     wrap.style.padding = '8px 10px'; wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.gap = '6px';
 
     const items = [
-      ['Fecha Actual en Tiempo Real', 'now', 'Sincronizar simulación al día de hoy UTC'],
-      ['Sistema Tierra y Luna', 'earthmoon', 'Vista orbital de alta resolución Tierra-Luna'],
-      ['Sistema Solar Interior', 'inner', 'Mercurio, Venus, Tierra y Marte'],
-      ['Sistema Solar Completo', 'outer', 'Todos los planetas hasta Neptuno'],
-      ['Impacto — Tierra (500m Hierro)', 'imp_earth', 'Simulación de impacto en la Tierra'],
-      ['Impacto — Luna (300m Roca)', 'imp_moon', 'Impacto en la superficie lunar'],
-      ['Impactos Múltiples Simultáneos', 'multi', 'Simulaciones en Tierra, Luna y Marte']
+      ['Real-Time Current Date', 'now', 'Sync simulation to today UTC clock'],
+      ['Earth & Moon System', 'earthmoon', 'High-resolution Earth-Moon orbital telemetry'],
+      ['Inner Solar System', 'inner', 'Mercury, Venus, Earth, and Mars'],
+      ['Full Solar System', 'outer', 'Complete planetary system to Neptune'],
+      ['Impact — Earth (500m Iron)', 'imp_earth', 'Simulated Earth collision scenario'],
+      ['Impact — Moon (300m Stone)', 'imp_moon', 'Simulated lunar surface impact'],
+      ['Multiple Simultaneous Impacts', 'multi', 'Simulations across Earth, Moon, and Mars']
     ];
     for (const [label, val, desc] of items) {
       const b = document.createElement('button');
@@ -3522,7 +3588,7 @@ class UIManager {
         this.createPresetImpact('mars', 800, 'Nickel-Iron', 30, 2031, 1, 4);
         break;
     }
-    this.toast('Escenario cargado: ' + name);
+    this.toast('Loaded mission scenario: ' + name);
   }
 
   createPresetImpact(targetKey, diameterM, material, vKmS, y, mo, d) {
@@ -3972,7 +4038,73 @@ class UIManager {
     const s = this.s;
     const el = document.getElementById('infoBody');
     if (!key) {
-      el.innerHTML = '<div class="empty"><div class="big">◐</div>Select a celestial body to inspect its physical properties, Keplerian elements, and real-time heliocentric coordinates.</div>';
+      el.innerHTML = '<div class="empty"><div class="big">◐</div>Select a celestial body or scheduled asteroid to inspect physical properties, orbital vectors, and real-time encounter telemetry.</div>';
+      return;
+    }
+
+    if (key.startsWith('event:')) {
+      const evKey = key.slice(6);
+      const ev = s.events.find(e => e.key === evKey);
+      if (!ev) {
+        el.innerHTML = '<div class="empty"><div class="big">◐</div>Impact event has concluded or was removed.</div>';
+        return;
+      }
+      const a = ev.asteroid;
+      const t = ev.targetBody;
+      const tti = a.impactDate - s.clock.jd;
+      const ttiStr = tti > 0 ? (tti >= 1 ? tti.toFixed(2) + ' days' : (tti * 24).toFixed(1) + ' hours') : 'Impact Reached';
+      const distStr = a.distKm != null ? fmtDist(a.distKm, this.unit) : '—';
+      const name = a.name || `${a.diameter}m ${a.material} Impactor`;
+
+      let html = '';
+      html += `<div class="info-title"><span class="sw" style="background:#f87171; box-shadow:0 0 12px rgba(248,113,113,0.8)"></span><div><h2>${name}</h2><div class="ty" style="color:var(--danger)">Near-Earth Asteroid / Impactor</div></div></div>`;
+      html += `<div class="info-sub">Target Body: <b>${t.data.name}</b> · Trajectory: Approach Vector</div>`;
+
+      html += `<div class="info-actions">
+        <div class="unit-toggle" id="unitToggle">
+          <button data-unit="metric" class="${this.unit === 'metric' ? 'active' : ''}">Metric</button>
+          <button data-unit="AU" class="${this.unit === 'AU' ? 'active' : ''}">AU</button>
+          <button data-unit="sci" class="${this.unit === 'sci' ? 'active' : ''}">Scientific</button>
+        </div>
+      </div>`;
+
+      html += `<div class="section-label">Impactor Physical Properties</div>`;
+      html += this.stat('Mean Diameter', fmtDist(a.diameter / 1000, this.unit));
+      html += this.stat('Estimated Mass', fmtMass(a.mass, this.unit));
+      html += this.stat('Composition Material', a.material);
+      html += this.stat('Bulk Density', `${a.density.toLocaleString()} kg/m³`);
+
+      html += `<div class="section-label">Encounter & Trajectory Telemetry</div>`;
+      html += this.stat('Time to Impact (TTI)', ttiStr);
+      html += this.stat('Distance to Surface', distStr);
+      html += this.stat('Approach Velocity (v_inf)', `${(a.velocity / 1000).toFixed(2)} km/s`);
+      html += this.stat('Atmospheric Entry Velocity (v_imp)', `${(a.vImpact / 1000).toFixed(2)} km/s`);
+      html += this.stat('Approach Azimuth / Elevation', `${(a.approachAz || 90).toFixed(1)}° / ${(a.approachElev || 25).toFixed(1)}°`);
+      if (a.errorMarginKm > 0) {
+        html += this.stat('3σ Orbital Error Margin', `±${fmtNum(a.errorMarginKm)} km`);
+      }
+
+      html += `<div class="section-label">Estimated Impact Consequences</div>`;
+      html += this.stat('Kinetic Energy', `${a.energy.toExponential(2)} J`);
+      html += this.stat('TNT Equivalent Energy', `${a.megatons > 1e6 ? a.megatons.toExponential(2) : a.megatons.toFixed(2)} Megatons TNT`);
+      html += this.stat('Estimated Crater Diameter', a.craterDiameter > 1000 ? (a.craterDiameter / 1000).toFixed(2) + ' km' : a.craterDiameter.toFixed(1) + ' m');
+      html += this.stat('Estimated Crater Depth', a.craterDepth > 1000 ? (a.craterDepth / 1000).toFixed(2) + ' km' : a.craterDepth.toFixed(1) + ' m');
+
+      html += `<div class="info-actions" style="margin-top:14px; gap:8px;">
+        <button class="btn btn-primary" id="infoFocus" style="flex:1">◎ Focus Asteroid</button>
+        <button class="btn" id="infoPreview" style="flex:1">▶ Preview Encounter</button>
+      </div>`;
+
+      el.innerHTML = html;
+
+      document.getElementById('unitToggle').onclick = (e) => {
+        const b = e.target.closest('[data-unit]');
+        if (!b) return;
+        this.unit = b.dataset.unit;
+        this.renderInfo(key);
+      };
+      document.getElementById('infoFocus').onclick = () => s.focusSelected();
+      document.getElementById('infoPreview').onclick = () => s.previewEvent(ev);
       return;
     }
 
@@ -4072,14 +4204,26 @@ class UIManager {
     const items = [];
     for (const k in s.bodies) items.push(k);
     for (const k in s.moons) items.push('moon:' + k);
+    for (const ev of s.events) {
+      if (ev.asteroid && ev.asteroid.mesh) items.push('event:' + ev.key);
+    }
 
     const camPos = s.camera.position;
     for (const key of items) {
       let body;
-      if (key.startsWith('moon:')) {
+      let labelName = '';
+      if (key.startsWith('event:')) {
+        const evKey = key.slice(6);
+        const ev = s.events.find(e => e.key === evKey);
+        if (!ev || !ev.asteroid || !ev.asteroid.mesh) continue;
+        body = ev.asteroid;
+        labelName = '☄ ' + (body.name || `${body.diameter}m Impactor`);
+      } else if (key.startsWith('moon:')) {
         body = s.moons[key.slice(5)];
+        labelName = body ? body.data.name : '';
       } else {
         body = s.bodies[key];
+        labelName = body ? body.data.name : '';
       }
       if (!body) continue;
 
@@ -4104,11 +4248,11 @@ class UIManager {
 
       const dist = camPos.distanceTo(wp);
       const isTarget = (s.selectedKey === (key.startsWith('moon:') ? key.slice(5) : key));
-      el.className = 'label3d ' + (key === 'sun' ? 'sun' : (isTarget ? 'target' : ''));
+      el.className = 'label3d ' + (key === 'sun' ? 'sun' : (key.startsWith('event:') ? 'target' : (isTarget ? 'target' : '')));
       el.style.left = x + 'px';
       el.style.top = (y - 8) + 'px';
       el.style.opacity = dist > 3500 ? '0.35' : '0.95';
-      el.textContent = body.data.name;
+      el.textContent = labelName;
     }
   }
 
