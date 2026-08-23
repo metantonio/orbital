@@ -1,14 +1,14 @@
-# 🪐 ORBITAL — 3D Solar System & Asteroid Impact Laboratory
+# 🪐 ORBIT — 3D Solar System & Asteroid Impact Laboratory
 
 [![GitHub Pages](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-success?style=for-the-badge&logo=github)](https://metantonio.github.io/orbital/)
 [![WebGL](https://img.shields.io/badge/WebGL-2.0-blue.svg)](https://www.khronos.org/webgl/)
-[![Three.js](https://img.shields.io/badge/Three.js-r128-black.svg)](https://threejs.org/)
+[![Three.js](https://img.shields.io/badge/Three.js-0.160-black.svg)](https://threejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status: Production Ready](https://img.shields.io/badge/Status-Scientific%20Visualization-brightgreen.svg)]()
 
 > 🌐 **Live Demo:** [https://metantonio.github.io/orbital/](https://metantonio.github.io/orbital/)
 
-**ORBITAL** es un planetario interactivo 3D y laboratorio de mecánica celeste y física de impactos de asteroides de alta fidelidad, contenido en **un único archivo autónomo (`index.html`)** desarrollado con Three.js, shaders GLSL personalizados y modelos orbitales basados en las efemérides J2000 del NASA Jet Propulsion Laboratory (JPL).
+**ORBIT** es un planetario interactivo 3D y laboratorio de mecánica celeste y física de impactos de asteroides de alta fidelidad, contenido en **un único archivo autónomo (`index.html`)** desarrollado con Three.js, shaders GLSL personalizados y modelos orbitales basados en las efemérides J2000 del NASA Jet Propulsion Laboratory (JPL).
 
 ---
 
@@ -60,13 +60,13 @@
 
 ---
 
-### 🎥 4. Cámara Orbital con Seguimiento Continuo (*Target Lock*)
+### 🎥 5. Cámara Orbital con Seguimiento Continuo (*Target Lock*)
 * **Seguimiento dinámico:** Al hacer doble clic en un planeta, presionar `F` o seleccionarlo en el explorador, la cámara lo sigue continuamente a lo largo de su órbita heliocéntrica sin perderlo de vista.
 * **Transiciones suaves:** Interpolación cúbica con amortiguación inercial (*damping*).
 
 ---
 
-### ⏱️ 5. Reloj Astronómico y Calendario UTC Universal
+### ⏱️ 6. Reloj Astronómico y Calendario UTC Universal
 * **Sincronización en tiempo real:** Botón **NOW** para sincronizar instantáneamente las posiciones de todos los planetas a la fecha y hora UTC actual exacta.
 * **Control de velocidad versátil:** Desde tiempo real ($1\text{ s/s}$), $1\text{ min/s}$, $1\text{ hr/s}$ (modo suave recomendado), $1\text{ día/s}$, hasta avances de siglos por segundo.
 * **Sentido de tiempo reversible:** Permite rebobinar o avanzar el reloj astronómico.
@@ -96,7 +96,7 @@
 
 * **HTML5 / CSS3 Moderno:** Arquitectura de paneles HUD semi-transparentes con efecto de desenfoque de fondo (*glassmorphism*), tipografía monoespaciada de precisión y paletas oscuras de alto contraste.
 * **JavaScript ES6 Modules:** Estructura modular pura orientada a objetos sin dependencias de compilación ni empaquetadores (Webpack/Vite no requeridos).
-* **Three.js (r128):** Renderizado WebGL acelerado por hardware con pipeline de post-procesamiento (`UnrealBloomPass` para resplandores solares y filamentos de impacto).
+* **Three.js (0.160):** Renderizado WebGL acelerado por hardware con pipeline de post-procesamiento (`UnrealBloomPass` para resplandores solares y filamentos de impacto).
 * **GLSL Shaders:** Shaders personalizados para la atmósfera de Rayleigh, mapa albedo multicapa de la Tierra, nubes procedurales, reflejos especulares y estrellas de fondo.
 
 ---
