@@ -46,6 +46,17 @@
 
 ---
 
+### ☄️ 4. Catálogo de Asteroides Cercanos (NEOs) y Cono de Incertidumbre 3D
+* **Asteroides Reales en Base de Datos:**
+  * **`99942 Apophis`:** Paso cercano el **13 de abril de 2029** a tan solo $31,600\text{ km}$ ($0.082\text{ LD}$, por debajo de la órbita geoestacionaria). Diámetro: $370\text{ m}$, velocidad: $30.73\text{ km/s}$, tipo rocoso.
+  * **`101955 Bennu`:** Paso cercano el **23 de septiembre de 2037** a $485,000\text{ km}$ ($1.26\text{ LD}$). Diámetro: $490\text{ m}$, densidad: $1190\text{ kg/m}^3$ (carbonáceo).
+  * **`(29075) 1950 DA`:** Paso cercano el **16 de marzo de 2039** a $820,000\text{ km}$ ($2.13\text{ LD}$). Diámetro: $1.3\text{ km}$ (clase kilométrica metálica).
+  * **`2023 DW`:** Encuentro de San Valentín el **14 de febrero de 2046** a $1.8\text{ M km}$. Diámetro: $50\text{ m}$.
+* **Corredor de Incertidumbre ($3\sigma$ Error Cone):** Visualización 3D translúcida del margen de dispersión orbital alrededor de la Tierra.
+* **Simulación con Un Clic:** Botones directos para inspeccionar la trayectoria orbital y agendar simulaciones inmediatas de colisión contra la Tierra.
+
+---
+
 ### 🎥 4. Cámara Orbital con Seguimiento Continuo (*Target Lock*)
 * **Seguimiento dinámico:** Al hacer doble clic en un planeta, presionar `F` o seleccionarlo en el explorador, la cámara lo sigue continuamente a lo largo de su órbita heliocéntrica sin perderlo de vista.
 * **Transiciones suaves:** Interpolación cúbica con amortiguación inercial (*damping*).

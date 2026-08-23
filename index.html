@@ -288,6 +288,27 @@
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid rgba(56, 189, 248, 0.15); padding-top: 16px; }
   .modal .err { color: var(--danger); font-size: 11px; font-family: var(--mono); margin-top: 8px; }
 
+  /* ---------- Known NEO Cards & Uncertainty Badges ---------- */
+  .neo-card {
+    background: rgba(15, 23, 42, 0.65); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; margin-bottom: 8px; transition: all 0.2s ease;
+  }
+  .neo-card:hover { border-color: var(--accent); background: rgba(15, 23, 42, 0.9); box-shadow: 0 4px 14px rgba(56, 189, 248, 0.15); }
+  .neo-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; gap: 6px; }
+  .neo-title { font-size: 11px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 5px; }
+  .neo-tag { font-size: 8.5px; font-family: var(--mono); padding: 1.5px 5px; border-radius: 3px; background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); white-space: nowrap; }
+  .neo-tag.hazard { background: rgba(248, 113, 113, 0.18); color: #fca5a5; border-color: rgba(248, 113, 113, 0.4); font-weight: 700; }
+  .neo-details { font-family: var(--mono); font-size: 9.5px; color: var(--text-dim); line-height: 1.55; margin: 4px 0 6px; }
+  .neo-details b { color: #f1f5f9; }
+  .neo-corridor { font-size: 9px; color: #38bdf8; background: rgba(56, 189, 248, 0.08); padding: 2px 5px; border-radius: 4px; border-left: 2px solid var(--accent); margin: 3px 0; }
+  .neo-actions { display: flex; gap: 5px; margin-top: 6px; }
+  .neo-actions .btn { flex: 1; padding: 4px 6px; font-size: 9px; }
+  .neo-actions .btn-impact { border-color: rgba(248, 113, 113, 0.5); color: #fca5a5; font-weight: 700; }
+  .neo-actions .btn-impact:hover { background: rgba(248, 113, 113, 0.25); color: #fff; border-color: var(--danger); }
+
+  .preset-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 14px; }
+  .preset-bar .btn { font-size: 10px; padding: 4px 8px; }
+
   /* ---------- Impact Event HUD & Timeline ---------- */
   #impactHud {
     position: fixed; inset: 0; pointer-events: none; z-index: 50; display: none;
@@ -2092,7 +2113,7 @@ class CameraController {
 }
 
 /* ===========================================================================
-   14. ASTEROID IMPACT & PHYSICS KINEMATICS
+   14. ASTEROID IMPACT & PHYSICS KINEMATICS & REAL NEO CATALOG
    =========================================================================== */
 const DENSITIES = {
   Iron: 7800,
@@ -2102,6 +2123,89 @@ const DENSITIES = {
   Ice: 1000,
   Cometary: 500,
   Custom: 3000
+};
+
+const KNOWN_NEOS = {
+  apophis: {
+    key: 'apophis',
+    name: '99942 Apophis (2029)',
+    designation: '99942 Apophis (2004 MN4)',
+    closeApproachDate: { year: 2029, month: 4, day: 13, hour: 21, min: 46, sec: 0 },
+    missDistanceKm: 31600,
+    missDistanceLD: 0.082,
+    diameter: 370,
+    material: 'Stone',
+    density: 3200,
+    velocityKmS: 30.73,
+    approachAz: 104,
+    approachElev: 22,
+    impactAngle: 42,
+    errorMarginKm: 3400,
+    torinoScale: '0 (Histórico: Torino 4)',
+    palermoScale: '-2.84',
+    hazard: true,
+    description: 'Pasa a tan solo 31,600 km de la superficie de la Tierra el 13 de abril de 2029 (más cerca que los satélites geoestacionarios a 35,786 km). Las mareas gravitatorias terrestres alterarán su rotación.'
+  },
+  bennu: {
+    key: 'bennu',
+    name: '101955 Bennu (2037)',
+    designation: '101955 Bennu (1999 RQ36)',
+    closeApproachDate: { year: 2037, month: 9, day: 23, hour: 14, min: 10, sec: 0 },
+    missDistanceKm: 485000,
+    missDistanceLD: 1.26,
+    diameter: 490,
+    material: 'Carbonaceous',
+    density: 1190,
+    velocityKmS: 12.1,
+    approachAz: 215,
+    approachElev: 38,
+    impactAngle: 48,
+    errorMarginKm: 8500,
+    torinoScale: '0 (Probabilidad acumulada 1 en 1,750 hacia 2182)',
+    palermoScale: '-1.41',
+    hazard: true,
+    description: 'Objetivo de la misión NASA OSIRIS-REx. Asteroide carbonáceo rico en orgánicos y minerales hidratados con posibles resonancias gravitatorias en 2060 y 2182.'
+  },
+  da1950: {
+    key: 'da1950',
+    name: '(29075) 1950 DA (2039)',
+    designation: '29075 1950 DA',
+    closeApproachDate: { year: 2039, month: 3, day: 16, hour: 8, min: 30, sec: 0 },
+    missDistanceKm: 820000,
+    missDistanceLD: 2.13,
+    diameter: 1300,
+    material: 'Nickel-Iron',
+    density: 3500,
+    velocityKmS: 14.1,
+    approachAz: 310,
+    approachElev: 18,
+    impactAngle: 36,
+    errorMarginKm: 12400,
+    torinoScale: '0 (Históricamente el mayor riesgo Palermo)',
+    palermoScale: '-1.81',
+    hazard: true,
+    description: 'Asteroide masivo de 1.3 km de diámetro metálico-rocoso. Un impacto liberaría más de 155,000 Megatones provocando invierno nuclear y megatsunamis globales.'
+  },
+  dw2023: {
+    key: 'dw2023',
+    name: '2023 DW (San Valentín 2046)',
+    designation: '2023 DW',
+    closeApproachDate: { year: 2046, month: 2, day: 14, hour: 19, min: 45, sec: 0 },
+    missDistanceKm: 1800000,
+    missDistanceLD: 4.68,
+    diameter: 50,
+    material: 'Stone',
+    density: 2800,
+    velocityKmS: 24.6,
+    approachAz: 145,
+    approachElev: 45,
+    impactAngle: 50,
+    errorMarginKm: 22000,
+    torinoScale: '0 (Inicialmente Torino 1)',
+    palermoScale: '-2.12',
+    hazard: false,
+    description: 'Descubierto en 2023 con riesgo inicial de 1 en 560 para San Valentín de 2046, descartado posteriormente tras seguimiento de radar de alta resolución.'
+  }
 };
 
 class Asteroid {
@@ -2129,6 +2233,7 @@ class Asteroid {
 
     this.approachAz = params.approachAz || 90;
     this.approachElev = params.approachElev || 25;
+    this.errorMarginKm = params.errorMarginKm || 0;
     this.dir = this._travelDir();
   }
 
@@ -2168,12 +2273,52 @@ class Asteroid {
       system.scene.add(this.head);
     }
 
-    const pts = [pos.clone(), target.worldPos.clone().addScaledVector(this.dir, -target.radiusScene)];
+    // 3D Uncertainty Error Margin Corridor Funnel
+    if (!this.corridor && this.errorMarginKm > 0) {
+      const rOuter = Math.max(0.12, (this.errorMarginKm / 100000) * target.radiusScene * 4);
+      const corrGeo = new THREE.CylinderGeometry(0.02, rOuter, 1, 16, 1, true);
+      corrGeo.rotateX(Math.PI / 2);
+      const corrMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false
+      });
+      this.corridor = new THREE.Mesh(corrGeo, corrMat);
+      system.scene.add(this.corridor);
+
+      const bGeo = new THREE.BufferGeometry();
+      const bMat = new THREE.LineDashedMaterial({ color: 0x38bdf8, dashSize: 0.6, gapSize: 0.4, transparent: true, opacity: 0.5 });
+      this.corridorLines = new THREE.LineSegments(bGeo, bMat);
+      system.scene.add(this.corridorLines);
+    }
+
+    const impactTargetPt = target.worldPos.clone().addScaledVector(this.dir, -target.radiusScene);
+    const pts = [pos.clone(), impactTargetPt];
     this.line.geometry.setFromPoints(pts);
     this.line.computeLineDistances();
     this.head.position.copy(pos);
     const isVeryClose = (travelScene < target.radiusScene * 1.5);
     this.head.visible = !isVeryClose;
+
+    if (this.corridor) {
+      const p1 = pos.clone(), p2 = impactTargetPt;
+      const length = Math.max(p1.distanceTo(p2), 0.01);
+      this.corridor.position.copy(p1).add(p2).multiplyScalar(0.5);
+      this.corridor.scale.set(1, 1, length);
+      this.corridor.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), this.dir.clone().negate());
+
+      const rOuter = Math.max(0.12, (this.errorMarginKm / 100000) * target.radiusScene * 4);
+      const right = new THREE.Vector3(0, 1, 0).cross(this.dir).normalize().multiplyScalar(rOuter);
+      const up = this.dir.clone().cross(right).normalize().multiplyScalar(rOuter);
+      const bPts = [
+        p1.clone(), p2.clone().add(right),
+        p1.clone(), p2.clone().sub(right),
+        p1.clone(), p2.clone().add(up),
+        p1.clone(), p2.clone().sub(up)
+      ];
+      this.corridorLines.geometry.setFromPoints(bPts);
+      this.corridorLines.computeLineDistances();
+      this.corridor.visible = !isVeryClose;
+      this.corridorLines.visible = !isVeryClose;
+    }
 
     return { ttiDays, travelKm };
   }
@@ -2670,6 +2815,8 @@ class SolarSystem {
     if (ev.asteroid.mesh) this.scene.remove(ev.asteroid.mesh);
     if (ev.asteroid.line) this.scene.remove(ev.asteroid.line);
     if (ev.asteroid.head) this.scene.remove(ev.asteroid.head);
+    if (ev.asteroid.corridor) this.scene.remove(ev.asteroid.corridor);
+    if (ev.asteroid.corridorLines) this.scene.remove(ev.asteroid.corridorLines);
     if (ev.impactSim && this.activeImpact === ev.impactSim) {
       this.activeImpact = null;
       this.cam.controls.enabled = true;
@@ -2879,6 +3026,7 @@ class UIManager {
   async init() {
     this._wireButtons();
     this._buildObjectList();
+    this._buildKnownNEOsList();
     this._buildScenarios();
     this._buildQuality();
     this._buildExport();
@@ -3140,6 +3288,112 @@ class UIManager {
     </div>`;
   }
 
+  /* ---------- Known Earth Approachers (NEOs / PHAs) ---------- */
+  _buildKnownNEOsList() {
+    const box = document.createElement('div');
+    box.className = 'obj-group'; box.style.marginTop = '14px';
+    box.innerHTML = 'Known Earth Approachers (NEOs)';
+    const wrap = document.createElement('div');
+    wrap.style.padding = '4px 10px 8px';
+
+    for (const key in KNOWN_NEOS) {
+      const neo = KNOWN_NEOS[key];
+      const card = document.createElement('div');
+      card.className = 'neo-card';
+      const d = neo.closeApproachDate;
+      const dateStr = `${d.year}-${String(d.month).padStart(2,'0')}-${String(d.day).padStart(2,'0')} ${String(d.hour).padStart(2,'0')}:${String(d.min).padStart(2,'0')} UTC`;
+      const distStr = `${fmtNum(neo.missDistanceKm)} km (${neo.missDistanceLD} LD)`;
+
+      card.innerHTML = `
+        <div class="neo-header">
+          <div class="neo-title">☄ ${neo.name}</div>
+          <span class="neo-tag ${neo.hazard ? 'hazard' : ''}">${neo.hazard ? 'PHA Hazard' : 'Close Flyby'}</span>
+        </div>
+        <div class="neo-details">
+          <b>Paso cercano:</b> ${dateStr}<br>
+          <b>Distancia mínima:</b> ${distStr}<br>
+          <b>Diámetro:</b> ~${neo.diameter} m · <b>Velocidad:</b> ${neo.velocityKmS} km/s · <b>Tipo:</b> ${neo.material}<br>
+          <div class="neo-corridor"><b>Margen de Error (3σ):</b> ±${fmtNum(neo.errorMarginKm)} km</div>
+          <div style="font-size:8.5px; color:var(--text-muted); margin-top:2px;">${neo.description}</div>
+        </div>
+        <div class="neo-actions">
+          <button class="btn btn-view-traj" title="Ver trayectoria y cono de incertidumbre 3σ">🔍 Trayectoria</button>
+          <button class="btn btn-impact" title="Agendar y simular colisión contra la Tierra">💥 Simular Impacto</button>
+        </div>
+      `;
+
+      card.querySelector('.btn-view-traj').onclick = () => this.inspectNEOTrajectory(key);
+      card.querySelector('.btn-impact').onclick = () => this.scheduleNEOImpact(key, false);
+      wrap.appendChild(card);
+    }
+    document.getElementById('left').appendChild(box);
+    document.getElementById('left').appendChild(wrap);
+  }
+
+  inspectNEOTrajectory(neoKey) {
+    const neo = KNOWN_NEOS[neoKey];
+    if (!neo) return;
+    const s = this.s;
+    const d = neo.closeApproachDate;
+    // Set clock to 8 hours before close approach
+    let simHour = d.hour - 8;
+    let simDay = d.day;
+    if (simHour < 0) { simHour += 24; simDay -= 1; }
+    this.setDate(d.year, d.month, simDay, simHour, d.min, d.sec || 0);
+    s.selectBody('earth');
+    s.focusSelected();
+
+    let ev = s.events.find(e => e.neoKey === neoKey);
+    if (!ev) {
+      const impactDate = OrbitalMechanics.julianDate(d.year, d.month, d.day, d.hour + d.min / 60 + (d.sec || 0) / 3600);
+      ev = s.createImpactEvent({
+        targetKey: 'earth',
+        diameter: neo.diameter,
+        material: neo.material,
+        density: neo.density,
+        velocity: neo.velocityKmS * 1000,
+        impactDate,
+        approachAz: neo.approachAz,
+        approachElev: neo.approachElev,
+        impactAngle: neo.impactAngle,
+        errorMarginKm: neo.errorMarginKm,
+        neoKey: neoKey
+      });
+      this.refreshEventList();
+    }
+    this.toast(`Visualizando trayectoria y cono de incertidumbre (±${fmtNum(neo.errorMarginKm)} km) de ${neo.name}`);
+  }
+
+  scheduleNEOImpact(neoKey, isPreview = false) {
+    const neo = KNOWN_NEOS[neoKey];
+    if (!neo) return;
+    const s = this.s;
+    const d = neo.closeApproachDate;
+    const impactDate = OrbitalMechanics.julianDate(d.year, d.month, d.day, d.hour + d.min / 60 + (d.sec || 0) / 3600);
+
+    const ev = s.createImpactEvent({
+      targetKey: 'earth',
+      diameter: neo.diameter,
+      material: neo.material,
+      density: neo.density,
+      velocity: neo.velocityKmS * 1000,
+      impactDate,
+      approachAz: neo.approachAz,
+      approachElev: neo.approachElev,
+      impactAngle: neo.impactAngle,
+      errorMarginKm: neo.errorMarginKm,
+      neoKey: neoKey
+    });
+    this.refreshEventList();
+
+    if (isPreview) {
+      this.previewEvent(ev);
+    } else {
+      this.jumpToEvent(ev);
+      this.toast(`Simulación de impacto agendada contra la Tierra: ${neo.name}`);
+    }
+  }
+
   /* ---------- Scenarios ---------- */
   _buildScenarios() {
     const box = document.createElement('div');
@@ -3345,6 +3599,15 @@ class UIManager {
     mc.innerHTML = `
       <h2>☄ Configure Asteroid Impact Event</h2>
       <div class="desc">Define physical properties and orbital encounter trajectory for a simulated impactor. Energy dissipation and crater formation calculations are performed in real time.</div>
+
+      <div class="section-label" style="margin-top:0">Quick Load Known NEO / PHA Asteroid</div>
+      <div class="preset-bar">
+        <button class="btn" data-neo="apophis">☄ 99942 Apophis (2029)</button>
+        <button class="btn" data-neo="bennu">☄ 101955 Bennu (2037)</button>
+        <button class="btn" data-neo="da1950">☄ (29075) 1950 DA (2039)</button>
+        <button class="btn" data-neo="dw2023">☄ 2023 DW (2046)</button>
+      </div>
+
       <div class="modal-grid">
         <div class="field full">
           <label>Target Celestial Body</label>
@@ -3391,6 +3654,31 @@ class UIManager {
       document.getElementById('mDensity').value = DENSITIES[e.target.value] || 3000;
       this._previewImpact();
     };
+
+    mc.querySelectorAll('.preset-bar button').forEach(btn => {
+      btn.onclick = () => {
+        const neo = KNOWN_NEOS[btn.dataset.neo];
+        if (!neo) return;
+        document.getElementById('mTarget').value = 'earth';
+        document.getElementById('mYear').value = neo.closeApproachDate.year;
+        document.getElementById('mMonth').value = neo.closeApproachDate.month;
+        document.getElementById('mDay').value = neo.closeApproachDate.day;
+        document.getElementById('mHour').value = neo.closeApproachDate.hour;
+        document.getElementById('mMin').value = neo.closeApproachDate.min;
+        document.getElementById('mSec').value = neo.closeApproachDate.sec || 0;
+        document.getElementById('mDiam').value = neo.diameter;
+        document.getElementById('mMaterial').value = neo.material;
+        document.getElementById('mDensity').value = neo.density;
+        document.getElementById('mVel').value = neo.velocityKmS;
+        document.getElementById('mVelUnit').value = '1000';
+        document.getElementById('mAz').value = neo.approachAz;
+        document.getElementById('mElev').value = neo.approachElev;
+        document.getElementById('mAngle').value = neo.impactAngle;
+        this._previewImpact();
+        this.toast(`Datos cargados para ${neo.name}`);
+      };
+    });
+
     document.getElementById('mSave').onclick = () => this._saveEvent(false);
     document.getElementById('mPreview').onclick = () => this._saveEvent(true);
     this._previewImpact();
