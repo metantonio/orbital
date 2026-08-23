@@ -1,9 +1,12 @@
 # 🪐 ORBITAL — 3D Solar System & Asteroid Impact Laboratory
 
+[![GitHub Pages](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-success?style=for-the-badge&logo=github)](https://metantonio.github.io/orbital/)
 [![WebGL](https://img.shields.io/badge/WebGL-2.0-blue.svg)](https://www.khronos.org/webgl/)
 [![Three.js](https://img.shields.io/badge/Three.js-r128-black.svg)](https://threejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status: Production Ready](https://img.shields.io/badge/Status-Scientific%20Visualization-brightgreen.svg)]()
+
+> 🌐 **Live Demo:** [https://metantonio.github.io/orbital/](https://metantonio.github.io/orbital/)
 
 **ORBITAL** es un planetario interactivo 3D y laboratorio de mecánica celeste y física de impactos de asteroides de alta fidelidad, contenido en **un único archivo autónomo (`index.html`)** desarrollado con Three.js, shaders GLSL personalizados y modelos orbitales basados en las efemérides J2000 del NASA Jet Propulsion Laboratory (JPL).
 
