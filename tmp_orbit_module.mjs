@@ -1,644 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ORBIT — Interactive 3D Solar System &amp; Asteroid Impact Laboratory</title>
-<style>
-  :root {
-    --bg: #030712;
-    --panel-bg: rgba(11, 19, 38, 0.78);
-    --panel-solid: #0b1326;
-    --panel-hover: rgba(20, 35, 68, 0.85);
-    --border: rgba(56, 189, 248, 0.22);
-    --border-highlight: rgba(56, 189, 248, 0.55);
-    --accent: #38bdf8;
-    --accent-glow: rgba(56, 189, 248, 0.35);
-    --accent-2: #fbbf24;
-    --accent-3: #a78bfa;
-    --text: #f0f6fc;
-    --text-dim: #94a3b8;
-    --text-muted: #64748b;
-    --danger: #f87171;
-    --good: #34d399;
-    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
-
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0; padding: 0;
-    width: 100%; height: 100%;
-    overflow: hidden;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 13px;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-
-  #app { position: fixed; inset: 0; }
-  canvas { display: block; width: 100%; height: 100%; }
-
-  /* ---------- Loading Overlay ---------- */
-  #loading {
-    position: fixed; inset: 0; z-index: 9999;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: radial-gradient(circle at 50% 40%, #0c1a3a 0%, #030712 75%);
-    transition: opacity 0.6s ease;
-  }
-  #loading h1 {
-    font-weight: 700; letter-spacing: 0.45em; font-size: 28px; margin: 0 0 6px;
-    background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  #loading .sub {
-    color: var(--text-dim); letter-spacing: 0.25em; font-size: 11px; margin-bottom: 30px; text-transform: uppercase;
-  }
-  .spinner {
-    width: 52px; height: 52px; border-radius: 50%;
-    border: 2px solid rgba(56, 189, 248, 0.15);
-    border-top-color: var(--accent);
-    animation: spin 0.9s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #loadStatus {
-    margin-top: 20px; color: var(--text-dim); font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
-  }
-
-  /* ---------- Error Overlay ---------- */
-  #errorBox {
-    position: fixed; inset: 0; z-index: 10000; display: none; align-items: center; justify-content: center;
-    background: #030712; padding: 24px;
-  }
-  #errorBox .box {
-    max-width: 600px; background: #0f172a; border: 1px solid var(--danger); border-radius: 12px;
-    padding: 24px 28px; font-family: var(--mono);
-  }
-  #errorBox h2 { color: var(--danger); margin: 0 0 10px; font-size: 18px; }
-  #errMsg { color: var(--text-dim); font-size: 12px; white-space: pre-wrap; line-height: 1.5; }
-
-  /* ---------- HUD Containers ---------- */
-  .hud { position: absolute; z-index: 10; pointer-events: none; }
-  .hud * { pointer-events: auto; }
-  #labelLayer { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
-
-  /* ---------- Top Bar ---------- */
-  #topbar {
-    top: 0; left: 0; right: 0; height: 54px;
-    display: flex; align-items: center; gap: 16px; padding: 0 18px;
-    background: linear-gradient(180deg, rgba(6, 11, 25, 0.94) 0%, rgba(6, 11, 25, 0.6) 100%);
-    border-bottom: 1px solid var(--border);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  }
-  #brand { display: flex; align-items: baseline; gap: 8px; }
-  #brand .logo {
-    font-weight: 800; letter-spacing: 0.3em; font-size: 17px;
-    background: linear-gradient(90deg, #38bdf8, #a78bfa);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  #brand .ver { color: var(--text-muted); font-size: 10px; letter-spacing: 0.15em; font-family: var(--mono); }
-  #clock { display: flex; flex-direction: column; justify-content: center; margin-left: 12px; border-left: 1px solid var(--border); padding-left: 14px; }
-  #clock .date { font-family: var(--mono); font-size: 14px; font-weight: 600; letter-spacing: 0.05em; color: #f8fafc; }
-  #clock .jd { font-family: var(--mono); font-size: 10px; color: var(--text-dim); letter-spacing: 0.08em; }
-  #clock .jd span { color: var(--accent); }
-  .spacer { flex: 1; }
-  #topRight { display: flex; align-items: center; gap: 10px; }
-  .pill {
-    display: flex; align-items: center; gap: 6px;
-    background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border);
-    border-radius: 20px; padding: 4px 10px; font-family: var(--mono); font-size: 11px;
-  }
-  .pill .k { color: var(--text-muted); font-size: 10px; }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); }
-  .dot.warn { background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); }
-  #speedPill .v { color: var(--accent-2); font-weight: 600; }
-  #fpsPill .v { color: var(--good); font-weight: 600; }
-
-  /* ---------- Scale Switcher ---------- */
-  #scaleInd {
-    position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
-    z-index: 11; pointer-events: none;
-  }
-  #scaleInd .chip {
-    pointer-events: auto; display: inline-flex; gap: 3px;
-    background: rgba(6, 11, 25, 0.85); border: 1px solid var(--border);
-    border-radius: 20px; padding: 3px; backdrop-filter: blur(8px);
-  }
-  #scaleInd button {
-    background: none; border: none; color: var(--text-dim); font-family: var(--mono);
-    font-size: 10.5px; letter-spacing: 0.08em; padding: 5px 12px; border-radius: 16px;
-    cursor: pointer; text-transform: uppercase; transition: all 0.2s;
-  }
-  #scaleInd button:hover { color: #fff; }
-  #scaleInd button.active {
-    background: linear-gradient(90deg, #38bdf8, #818cf8);
-    color: #030712; font-weight: 700; box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
-  }
-
-  /* ---------- Scientific Mode Indicator ---------- */
-  .sci-badge {
-    position: absolute; top: 66px; right: 18px; z-index: 11;
-    background: rgba(56, 189, 248, 0.12); border: 1px solid var(--accent);
-    color: var(--accent); font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
-    padding: 5px 10px; border-radius: 6px; display: none; backdrop-filter: blur(6px);
-  }
-  .sci-badge.on { display: block; }
-
-  /* ---------- Left Panel (Object Browser & Scenarios) ---------- */
-  /* ---------- Left Panel (Object Browser & Scenarios) ---------- */
-  #left {
-    top: 54px; left: 0; bottom: 100px; width: 270px; z-index: 11;
-    background: var(--panel-bg); border-right: 1px solid var(--border);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    display: flex; flex-direction: column; transform: translateX(0); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  #left.collapsed { transform: translateX(-270px); }
-  .panel-tabs {
-    display: flex; background: rgba(3, 7, 18, 0.65); border-bottom: 1px solid var(--border);
-  }
-  .tab-btn {
-    flex: 1; background: none; border: none; color: var(--text-dim);
-    font-family: var(--mono); font-size: 10px; padding: 10px 4px; cursor: pointer;
-    border-bottom: 2px solid transparent; transition: all 0.15s; text-align: center;
-    display: inline-flex; align-items: center; justify-content: center; gap: 3px;
-  }
-  .tab-btn:hover { color: #fff; background: rgba(56, 189, 248, 0.08); }
-  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; background: rgba(56, 189, 248, 0.12); }
-  
-  #leftBody {
-    flex: 1; overflow-y: auto; overflow-x: hidden;
-  }
-  .tab-pane { display: none; }
-  .tab-pane.active { display: block; }
-
-  .panel-head {
-    padding: 10px 14px; font-size: 10px; letter-spacing: 0.18em; color: var(--text-dim);
-    text-transform: uppercase; border-bottom: 1px solid var(--border);
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .panel-head b { color: var(--accent); font-weight: 700; font-family: var(--mono); }
-  #objList { padding: 6px; }
-  .obj-group {
-    font-size: 9.5px; letter-spacing: 0.16em; color: var(--accent-3);
-    padding: 8px 8px 3px; text-transform: uppercase; font-weight: 600;
-  }
-  .obj-row {
-    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
-    border-radius: 6px; cursor: pointer; transition: all 0.15s;
-    border: 1px solid transparent; margin-bottom: 2px;
-  }
-  .obj-row:hover { background: rgba(56, 189, 248, 0.1); border-color: rgba(56, 189, 248, 0.2); }
-  .obj-row.selected { background: rgba(56, 189, 248, 0.18); border-color: var(--accent); }
-  .obj-row .sw { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 6px rgba(255, 255, 255, 0.2); }
-  .obj-row .nm { font-size: 12px; font-weight: 500; }
-  .obj-row .ty { margin-left: auto; font-size: 9px; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
-
-  #collapseBtn {
-    position: absolute; top: 10px; right: -13px; width: 26px; height: 26px;
-    border: 1px solid var(--border); border-radius: 50%;
-    background: var(--panel-solid); color: var(--text); cursor: pointer;
-    display: flex; align-items: center; justify-content: center; font-size: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); z-index: 12;
-  }
-
-  /* ---------- Right Panel (Object Information) ---------- */
-  #right {
-    top: 54px; right: 0; bottom: 100px; width: 330px; z-index: 11;
-    background: var(--panel-bg); border-left: 1px solid var(--border);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    overflow-y: auto; padding: 14px 16px; transform: translateX(0); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  #right.collapsed { transform: translateX(330px); }
-  #infoBody .empty { color: var(--text-muted); font-size: 12px; line-height: 1.6; text-align: center; padding-top: 40px; }
-  #infoBody .empty .big { font-size: 36px; color: rgba(56, 189, 248, 0.2); margin-bottom: 8px; }
-  .info-title { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
-  .info-title .sw { width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 12px rgba(56, 189, 248, 0.4); flex-shrink: 0; }
-  .info-title h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: 0.03em; }
-  .info-title .ty { font-size: 10px; color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; }
-  .info-sub { color: var(--text-dim); font-size: 11px; margin-bottom: 12px; font-family: var(--mono); }
-  .info-actions { display: flex; gap: 6px; margin: 10px 0; flex-wrap: wrap; }
-  .unit-toggle { display: flex; background: rgba(0, 0, 0, 0.35); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
-  .unit-toggle button {
-    background: none; border: none; color: var(--text-dim); font-family: var(--mono);
-    font-size: 10px; padding: 4px 10px; cursor: pointer; transition: background 0.15s;
-  }
-  .unit-toggle button.active { background: var(--accent); color: #030712; font-weight: 700; }
-  .section-label {
-    font-size: 9.5px; letter-spacing: 0.18em; color: var(--accent);
-    text-transform: uppercase; margin: 14px 0 6px; font-weight: 700;
-    border-bottom: 1px solid rgba(56, 189, 248, 0.15); padding-bottom: 3px;
-  }
-  .stat { display: flex; justify-content: space-between; align-items: center; padding: 3.5px 0; font-family: var(--mono); font-size: 11px; }
-  .stat .k { color: var(--text-dim); }
-  .stat .v { color: #f1f5f9; font-weight: 500; text-align: right; }
-
-  /* ---------- Bottom Panel (Timeline & Controls) ---------- */
-  #bottom {
-    bottom: 0; left: 0; right: 0; height: 96px; z-index: 11;
-    background: linear-gradient(0deg, rgba(6, 11, 25, 0.96) 0%, rgba(6, 11, 25, 0.75) 100%);
-    border-top: 1px solid var(--border);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    display: flex; flex-direction: column; justify-content: center; padding: 6px 18px 10px; gap: 6px;
-  }
-  .bottom-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; overflow-x: auto; }
-  .ctrl-group { display: flex; align-items: center; gap: 4px; background: rgba(15, 23, 42, 0.6); padding: 3px 6px; border-radius: 8px; border: 1px solid var(--border); }
-  .btn {
-    background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border);
-    color: var(--text); border-radius: 6px; padding: 5px 10px;
-    font-family: var(--mono); font-size: 11px; cursor: pointer;
-    transition: all 0.15s; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center;
-  }
-  .btn:hover { background: rgba(56, 189, 248, 0.15); border-color: var(--accent); color: #fff; }
-  .btn.active { background: var(--accent); border-color: var(--accent); color: #030712; font-weight: 700; }
-  .btn-primary {
-    background: linear-gradient(90deg, #0284c7, #6366f1);
-    border-color: #38bdf8; color: #fff; font-weight: 600;
-  }
-  .btn-primary:hover { background: linear-gradient(90deg, #38bdf8, #818cf8); }
-  .btn.pause { width: 34px; height: 28px; font-weight: bold; }
-  .btn.pause.play { background: rgba(52, 211, 153, 0.2); border-color: var(--good); color: var(--good); }
-
-  #timeSlider {
-    flex: 1; min-width: 120px; height: 6px;
-    accent-color: var(--accent); cursor: pointer;
-  }
-
-  /* ---------- Date Setter Toolbar & Inputs ---------- */
-  .date-inputs { display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono); font-size: 11px; }
-  .date-inputs input {
-    width: 44px; background: rgba(3, 7, 18, 0.7); border: 1px solid var(--border);
-    color: #fff; border-radius: 4px; padding: 4px 5px; font-family: var(--mono); font-size: 11px; text-align: center;
-  }
-  .date-inputs input.yr { width: 56px; }
-
-  /* ---------- Asteroid FAB ---------- */
-  #asteroidFab {
-    position: absolute; bottom: 108px; right: 345px; z-index: 12;
-    transition: right 0.3s;
-  }
-  #asteroidFab .btn {
-    box-shadow: 0 4px 18px rgba(56, 189, 248, 0.35); padding: 8px 16px; font-size: 12px; font-weight: 700;
-  }
-
-  /* ---------- Modals & Overlays ---------- */
-  #modalBg {
-    position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center;
-    background: rgba(3, 7, 18, 0.75); backdrop-filter: blur(8px);
-  }
-  #modalBg.open { display: flex; }
-  .modal {
-    width: 620px; max-width: 92vw; max-height: 88vh; overflow-y: auto;
-    background: #0b1329; border: 1px solid var(--border); border-radius: 14px;
-    padding: 24px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
-  }
-  .modal h2 { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
-  .modal .desc { color: var(--text-dim); font-size: 12px; margin-bottom: 16px; line-height: 1.5; }
-  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
-  .field { display: flex; flex-direction: column; gap: 4px; }
-  .field.full { grid-column: 1 / -1; }
-  .field label { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
-  .field input, .field select {
-    background: #060d1f; border: 1px solid var(--border); color: #fff;
-    border-radius: 6px; padding: 7px 10px; font-family: var(--mono); font-size: 12px;
-  }
-  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
-  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid rgba(56, 189, 248, 0.15); padding-top: 16px; }
-  .modal .err { color: var(--danger); font-size: 11px; font-family: var(--mono); margin-top: 8px; }
-
-  /* ---------- Known NEO Cards & Uncertainty Badges ---------- */
-  .neo-card {
-    background: rgba(15, 23, 42, 0.65); border: 1px solid var(--border); border-radius: 8px;
-    padding: 8px 10px; margin-bottom: 8px; transition: all 0.2s ease;
-  }
-  .neo-card:hover { border-color: var(--accent); background: rgba(15, 23, 42, 0.9); box-shadow: 0 4px 14px rgba(56, 189, 248, 0.15); }
-  .neo-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; gap: 6px; }
-  .neo-title { font-size: 11px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 5px; }
-  .neo-tag { font-size: 8.5px; font-family: var(--mono); padding: 1.5px 5px; border-radius: 3px; background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); white-space: nowrap; }
-  .neo-tag.hazard { background: rgba(248, 113, 113, 0.18); color: #fca5a5; border-color: rgba(248, 113, 113, 0.4); font-weight: 700; }
-  .neo-details { font-family: var(--mono); font-size: 9.5px; color: var(--text-dim); line-height: 1.55; margin: 4px 0 6px; }
-  .neo-details b { color: #f1f5f9; }
-  .neo-corridor { font-size: 9px; color: #38bdf8; background: rgba(56, 189, 248, 0.08); padding: 2px 5px; border-radius: 4px; border-left: 2px solid var(--accent); margin: 3px 0; }
-  .neo-actions { display: flex; gap: 5px; margin-top: 6px; }
-  .neo-actions .btn { flex: 1; padding: 4px 6px; font-size: 9px; }
-  .neo-actions .btn-impact { border-color: rgba(248, 113, 113, 0.5); color: #fca5a5; font-weight: 700; }
-  .neo-actions .btn-impact:hover { background: rgba(248, 113, 113, 0.25); color: #fff; border-color: var(--danger); }
-
-  .preset-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 14px; }
-  .preset-bar .btn { font-size: 10px; padding: 4px 8px; }
-
-  /* ---------- Impact Event HUD & Timeline ---------- */
-  #impactHud {
-    position: fixed; inset: 0; pointer-events: none; z-index: 50; display: none;
-  }
-  #impactHud.on { display: block; }
-  #impactFlash {
-    position: absolute; inset: 0; background: radial-gradient(circle, rgba(255, 245, 200, 0.95) 0%, rgba(255, 120, 40, 0.6) 40%, rgba(0, 0, 0, 0) 80%);
-    opacity: 0; pointer-events: none;
-  }
-  #impactHud .banner {
-    position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
-    background: rgba(15, 23, 42, 0.88); border: 1px solid var(--danger);
-    border-radius: 12px; padding: 12px 24px; text-align: center;
-    box-shadow: 0 0 30px rgba(248, 113, 113, 0.4); backdrop-filter: blur(10px);
-  }
-  #impactHud .banner .tt { font-size: 16px; font-weight: 700; color: var(--danger); letter-spacing: 0.1em; }
-  #impactHud .banner .num { font-family: var(--mono); font-size: 13px; color: #fff; margin-top: 4px; }
-
-  #eventTimeline {
-    position: absolute; bottom: 106px; left: 260px; right: 350px; height: 58px;
-    background: var(--panel-bg); border: 1px solid var(--border); border-radius: 10px;
-    padding: 8px 14px; backdrop-filter: blur(10px); display: none; flex-direction: column; justify-content: space-between;
-    z-index: 12;
-  }
-  #eventTimeline.on { display: flex; }
-  #eventTimeline h4 { margin: 0; font-size: 10px; letter-spacing: 0.15em; color: var(--accent); text-transform: uppercase; font-family: var(--mono); }
-  .tl-track { position: relative; width: 100%; height: 10px; background: rgba(255, 255, 255, 0.08); border-radius: 5px; cursor: pointer; }
-  .tl-bar { position: absolute; inset: 0; border-radius: 5px; }
-  .tl-progress { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, #38bdf8, #f87171); border-radius: 5px; }
-  .tl-now { position: absolute; top: -3px; width: 6px; height: 16px; background: #fff; border-radius: 3px; transform: translateX(-50%); box-shadow: 0 0 8px #fff; }
-  .tl-mark { position: absolute; top: -14px; font-size: 8.5px; font-family: var(--mono); color: var(--text-dim); transform: translateX(-50%); }
-  .tl-mark.imp { color: var(--danger); font-weight: 700; }
-  .tl-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 2px; }
-  .tl-controls .btn { padding: 2px 8px; font-size: 9.5px; }
-
-  /* ---------- Event List Float Panel ---------- */
-  #eventPanel {
-    position: absolute; top: 100px; left: 260px; width: 280px; max-height: 220px;
-    background: var(--panel-bg); border: 1px solid var(--border); border-radius: 10px;
-    padding: 8px 10px; backdrop-filter: blur(10px); display: none; flex-direction: column;
-    z-index: 12; overflow-y: auto;
-  }
-  #eventPanel.on { display: flex; }
-  #eventPanel .eh { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--accent); letter-spacing: 0.12em; font-weight: 700; margin-bottom: 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; font-family: var(--mono); }
-  #eventPanel .er { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 5px; background: rgba(255, 255, 255, 0.03); margin-bottom: 4px; }
-  #eventPanel .er .dc { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  #eventPanel .er .em { flex: 1; cursor: pointer; font-size: 11px; }
-  #eventPanel .er .em b { color: #fff; }
-  #eventPanel .er .em small { display: block; color: var(--text-dim); font-family: var(--mono); font-size: 9px; }
-  #eventPanel .er button { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; padding: 2px 6px; font-size: 9.5px; cursor: pointer; }
-  #eventPanel .er button:hover { border-color: var(--accent); color: #fff; }
-  #eventPanel .er .rm { color: var(--danger) !important; }
-
-  /* ---------- 3D Labels in Screen Space ---------- */
-  .label3d {
-    position: absolute; transform: translate(-50%, -100%); pointer-events: none;
-    font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: rgba(220, 235, 255, 0.85);
-    background: rgba(3, 7, 18, 0.6); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.2);
-    white-space: nowrap; transition: opacity 0.15s; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-  }
-  .label3d.target { border-color: var(--accent); color: #fff; font-weight: 700; box-shadow: 0 0 8px rgba(56, 189, 248, 0.4); }
-  .label3d.sun { color: #fde047; border-color: rgba(253, 224, 71, 0.3); }
-
-  /* ---------- Keyboard Shortcuts Overlay ---------- */
-  #shortcuts {
-    position: absolute; bottom: 106px; left: 16px; z-index: 10;
-    display: flex; flex-direction: column; gap: 3px; font-family: var(--mono); font-size: 9.5px; color: var(--text-muted);
-    background: rgba(6, 11, 25, 0.6); padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.12);
-  }
-  #shortcuts span.k { color: var(--accent); font-weight: 700; margin-right: 4px; }
-
-  /* ---------- Toast Notification ---------- */
-  #toast {
-    position: fixed; top: 68px; left: 50%; transform: translateX(-50%) translateY(-20px);
-    background: rgba(15, 23, 42, 0.92); border: 1px solid var(--accent); color: #fff;
-    font-family: var(--mono); font-size: 11px; padding: 6px 16px; border-radius: 20px;
-    opacity: 0; pointer-events: none; z-index: 10000; transition: all 0.25s ease;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-  }
-  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.25); border-radius: 3px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-</style>
-</head>
-<body>
-<div id="app"></div>
-
-<!-- Loading Overlay -->
-<div id="loading">
-  <h1>ORBIT</h1>
-  <div class="sub">Interactive Solar System &amp; Impact Laboratory</div>
-  <div class="spinner"></div>
-  <div id="loadStatus">Generating Planetary Shaders &amp; Ephemerides…</div>
-</div>
-
-<!-- Error Box -->
-<div id="errorBox">
-  <div class="box">
-    <h2>⚠ Initialization Error</h2>
-    <div id="errMsg"></div>
-  </div>
-</div>
-
-<!-- Top Bar -->
-<div id="topbar" class="hud">
-  <div id="brand"><span class="logo">ORBIT</span><span class="ver">NASA-LAB 3D</span></div>
-  <div id="clock">
-    <span class="date" id="clockDate">—</span>
-    <span class="jd">JULIAN DATE <span id="clockJd">—</span></span>
-  </div>
-
-  <div class="spacer"></div>
-
-  <!-- Quick Date Presets -->
-  <div class="ctrl-group" style="margin-right:8px;">
-    <button class="btn" id="btnDatePreset2000" title="01/01/2000 J2000 Epoch">2000</button>
-    <button class="btn" id="btnDatePreset2026" title="20/08/2026 Eclipse Season">2026</button>
-    <button class="btn" id="btnDatePreset2030" title="01/01/2030 Decade Mark">2030</button>
-    <button class="btn" id="btnDateNow" title="Current Real Date">NOW</button>
-  </div>
-
-  <div id="topRight">
-    <div class="pill" id="fpsPill" title="Render Frames Per Second"><span class="k">FPS</span><span class="v" id="fpsVal">60</span></div>
-    <div class="pill" id="speedPill" title="Current Simulation Rate"><span class="k">SPEED</span><span class="v" id="speedPillVal">1×</span></div>
-    <div class="pill" title="System Status"><span class="dot" id="statusDot"></span><span class="k" id="statusTxt">SIMULATION READY</span></div>
-  </div>
-</div>
-
-<!-- Scale Switcher -->
-<div id="scaleInd" class="hud">
-  <div class="chip">
-    <button data-scale="scientific" title="1:1 Astronomical Proportions">Scientific</button>
-    <button data-scale="presentation" class="active" title="Balanced View for Planetary Science">Presentation</button>
-    <button data-scale="cinematic" title="Dramatic Close-Up Exaggeration">Cinematic</button>
-  </div>
-</div>
-
-<div class="sci-badge" id="sciBadge">◆ SCIENTIFIC MODE · VECTORS &amp; ORBITAL PLANES ACTIVE</div>
-
-<!-- Left Panel (Planets & NEOs & Scenarios) -->
-<div id="left" class="hud">
-  <button id="collapseBtn" title="Toggle Sidebar">‹</button>
-  <div class="panel-tabs" id="leftTabs">
-    <button class="tab-btn active" data-tab="planets">🪐 Planets</button>
-    <button class="tab-btn" data-tab="neos">☄️ NEOs</button>
-    <button class="tab-btn" data-tab="scenarios">🚀 Missions</button>
-  </div>
-  <div id="leftBody">
-    <div id="tabPlanets" class="tab-pane active">
-      <div class="panel-head"><span>Celestial Bodies</span><b id="objCount">0</b></div>
-      <div id="objList"></div>
-      <div id="qualitySection"></div>
-      <div id="exportSection"></div>
-    </div>
-    <div id="tabNeos" class="tab-pane">
-      <div class="panel-head"><span>Near-Earth Asteroids</span><b id="neoCount">4</b></div>
-      <div id="neoList"></div>
-    </div>
-    <div id="tabScenarios" class="tab-pane">
-      <div class="panel-head"><span>Mission Scenarios</span></div>
-      <div id="scenariosList"></div>
-    </div>
-  </div>
-</div>
-
-<!-- Right Panel (Object Information) -->
-<div id="right" class="hud">
-  <div class="panel-head"><span>Telemetry &amp; Orbital Data</span></div>
-  <div id="infoBody">
-    <div class="empty"><div class="big">◐</div>Select a celestial body to inspect its physical properties, Keplerian elements, and real-time heliocentric coordinates.</div>
-  </div>
-</div>
-
-<!-- Bottom Panel (Timeline & Controls & Date Setter) -->
-<div id="bottom" class="hud">
-  <!-- Row 1: Date/Time Inputs & Date Setter & Steppers -->
-  <div class="bottom-row">
-    <div class="ctrl-group">
-      <button class="btn pause play" id="btnPause" title="Play / Pause Simulation (Space)">❚❚</button>
-      <button class="btn" id="btnReverse" title="Toggle Forward / Backward Time Direction">⇄ REV</button>
-    </div>
-
-    <!-- Date Input Form -->
-    <div class="ctrl-group date-inputs">
-      <input type="number" id="inpYear" class="yr" title="Year" value="2026" min="1" max="9999" />
-      <span>-</span>
-      <input type="number" id="inpMonth" title="Month (1-12)" value="8" min="1" max="12" />
-      <span>-</span>
-      <input type="number" id="inpDay" title="Day (1-31)" value="20" min="1" max="31" />
-      <span style="margin-left:4px;"></span>
-      <input type="number" id="inpHour" title="Hour UTC (0-23)" value="12" min="0" max="23" />
-      <span>:</span>
-      <input type="number" id="inpMin" title="Minute (0-59)" value="0" min="0" max="59" />
-      <span>:</span>
-      <input type="number" id="inpSec" title="Second (0-59)" value="0" min="0" max="59" />
-      <button class="btn btn-primary" id="btnSetDate" style="margin-left:6px;" title="Calculate Planetary Positions for Given Date">Set Date</button>
-    </div>
-
-    <!-- Stepper Buttons -->
-    <div class="ctrl-group">
-      <button class="btn" id="btnY1" title="−1 Year">−1Y</button>
-      <button class="btn" id="btnM1" title="−1 Month">−1M</button>
-      <button class="btn" id="btnW1" title="−1 Week">−1W</button>
-      <button class="btn" id="btnD1" title="−1 Day">−1D</button>
-      <button class="btn" id="btnD1p" title="+1 Day">+1D</button>
-      <button class="btn" id="btnW1p" title="+1 Week">+1W</button>
-      <button class="btn" id="btnM1p" title="+1 Month">+1M</button>
-      <button class="btn" id="btnY1p" title="+1 Year">+1Y</button>
-    </div>
-
-    <!-- Visual Layer Toggles -->
-    <div class="ctrl-group">
-      <button class="btn active" id="btnToggleOrbits" title="Toggle Orbit Lines (T)">Orbits</button>
-      <button class="btn active" id="btnToggleLabels" title="Toggle Object Labels">Labels</button>
-      <button class="btn active" id="btnToggleBelt" title="Toggle Asteroid Belt">Belt</button>
-      <button class="btn" id="btnToggleSci" title="Toggle Scientific Mode (S)">Sci Mode</button>
-    </div>
-  </div>
-
-  <!-- Row 2: Speed Presets, Custom Multiplier, Scrubber -->
-  <div class="bottom-row">
-    <div class="ctrl-group" id="speedGroup">
-      <button class="btn speed" data-speed="0">PAUSE</button>
-      <button class="btn speed" data-speed="0.000011574074" title="True Real-Time (1 sec / sec)">1× (1s/s)</button>
-      <button class="btn speed" data-speed="0.0006944444" title="1 Minute per second">1 min/s</button>
-      <button class="btn speed active" data-speed="0.041666667" title="1 Hour per second (Smooth &amp; Graceful)">1 hr/s</button>
-      <button class="btn speed" data-speed="1" title="1 Day per second">1 day/s</button>
-      <button class="btn speed" data-speed="7" title="7 Days (1 Week) per second">7 d/s</button>
-      <button class="btn speed" data-speed="30" title="30 Days (1 Month) per second">30 d/s</button>
-      <button class="btn speed" data-speed="365.25" title="1 Year per second">1 yr/s</button>
-      <button class="btn speed" data-speed="3652.5" title="10 Years per second">10 yr/s</button>
-    </div>
-
-    <div class="ctrl-group" style="font-family:var(--mono); font-size:11px; color:var(--text-dim);">
-      <span>Custom Rate:</span>
-      <input type="number" id="inpCustomSpeed" value="250000" min="1" max="100000000" style="width:75px; background:#060d1f; border:1px solid var(--border); color:#fff; padding:3px 6px; border-radius:4px; font-family:var(--mono); font-size:11px;" />
-      <button class="btn" id="btnApplyCustomSpeed">Apply</button>
-    </div>
-
-    <input type="range" id="timeSlider" min="-100000" max="100000" value="0" step="0.01" title="Time Scrub Slider (J2000 ± 270 Years)" />
-  </div>
-</div>
-
-<!-- Asteroid FAB -->
-<div id="asteroidFab">
-  <button class="btn btn-primary" id="asteroidBtn">☄ CREATE IMPACT EVENT</button>
-</div>
-
-<!-- Modal Dialog -->
-<div id="modalBg">
-  <div class="modal" id="modalContent"></div>
-</div>
-
-<!-- Impact HUD Banner & Flash -->
-<div id="impactHud">
-  <div id="impactFlash"></div>
-  <div class="banner">
-    <div class="tt" id="impactBanner">IMPACT EVENT DETECTED</div>
-    <div class="num" id="impactNum">Calculating Kinetic Dissipation…</div>
-  </div>
-</div>
-
-<!-- Impact Event Timeline Scrubber -->
-<div id="eventTimeline">
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    <h4 id="tlTitle">Impact Event Timeline</h4>
-    <div class="tl-controls">
-      <button class="btn" id="tlJumpImp">◉ Jump to Impact</button>
-      <button class="btn" id="tlPreview">▶ Preview Impact</button>
-      <button class="btn" id="tlReturn">↺ Return to Sim</button>
-    </div>
-  </div>
-  <div class="tl-track" id="tlTrack">
-    <div class="tl-bar"></div>
-    <div class="tl-progress" id="tlProgress"></div>
-    <div class="tl-now" id="tlNow"></div>
-  </div>
-</div>
-
-<!-- Active Events Panel -->
-<div id="eventPanel">
-  <div class="eh"><span>SCHEDULED IMPACTS</span><span id="evCount">0</span></div>
-  <div id="evBody"></div>
-</div>
-
-<!-- Keyboard Shortcuts Bar -->
-<div id="shortcuts">
-  <div><span class="k">Space</span>Pause / Play · <span class="k">F</span>Focus · <span class="k">T</span>Orbits · <span class="k">S</span>Scientific</div>
-  <div><span class="k">A</span>Asteroid Modal · <span class="k">R</span>Reset · <span class="k">1-5</span>Sun / Earth / Moon / Mars / Jupiter</div>
-</div>
-
-<!-- Toast -->
-<div id="toast"></div>
-
-<!-- 3D Label Container -->
-<div id="labelLayer"></div>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-
-<script type="module">
+﻿
 /* =============================================================================
-   ORBIT — Scientific Solar System Simulation & Asteroid Impact Laboratory
+   ORBIT â€” Scientific Solar System Simulation & Asteroid Impact Laboratory
    Three.js Interactive Visualization
 
    ASTRONOMICAL & SCIENTIFIC MODEL:
@@ -651,7 +13,7 @@
    - True anomaly nu and orbital radius r computed, then transformed to Cartesian
      heliocentric coordinates (X, Y, Z).
    - Moons computed via semi-major axis, orbital periods, inclinations, and eccentricities.
-   - Underlying physical units are rigorously stored in AU, km, seconds, kg, and m/s².
+   - Underlying physical units are rigorously stored in AU, km, seconds, kg, and m/sÂ².
    - Display modes (Scientific, Presentation, Cinematic) transform coordinates ONLY
      for rendering without distorting underlying scientific data.
    ============================================================================= */
@@ -666,8 +28,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
    1. CONSTANTS & PHYSICAL CONSTANTS
    =========================================================================== */
 const AU_KM       = 149597870.7;          // 1 Astronomical Unit in km
-const GM_SUN      = 1.32712440018e20;     // Solar gravitational parameter (m³/s²)
-const G           = 6.67430e-11;          // Universal gravitational constant (m³ kg⁻¹ s⁻²)
+const GM_SUN      = 1.32712440018e20;     // Solar gravitational parameter (mÂ³/sÂ²)
+const G           = 6.67430e-11;          // Universal gravitational constant (mÂ³ kgâ»Â¹ sâ»Â²)
 const JD_J2000    = 2451545.0;            // Julian Date epoch J2000.0 (2000-01-01 12:00:00 TT)
 const DEG         = Math.PI / 180;
 const RAD         = 180 / Math.PI;
@@ -1026,151 +388,59 @@ class TextureFactory {
     });
   }
 
-  static _softBox(lon, lat, cx, cy, hx, hy, fade, rot) {
-    // Soft "blob" with optional rotation (rot in degrees).
-    rot = rot || 0;
-    const r = rot * 0.01745329252;
-    const dx = lon - cx, dy = lat - cy;
-    const lx = dx * Math.cos(r) - dy * Math.sin(r);
-    const ly = dx * Math.sin(r) + dy * Math.cos(r);
-    const d = Math.max(Math.abs(lx) / hx, Math.abs(ly) / hy);
+  static _softBox(lon, lat, cx, cy, hx, hy, fade) {
+    // Soft "blob": value 1 at centre, easing to 0 across `fade` (fraction of half-size).
+    const d = Math.max(Math.abs(lon - cx) / hx, Math.abs(lat - cy) / hy);
     const t = clamp((d - (1 - fade)) / fade, 0, 1);
-    return 1 - t * t * (3 - 2 * t);
+    const s = t * t * (3 - 2 * t);
+    return 1 - s;
   }
 
   static _landField(u, v) {
     // Continuous land/ocean field in ~[0,1]: ~0 open ocean, ~1 deep continent.
-    // Uses large-scale noise as a base + soft overlapping blobs for continent mass.
-    // No high-frequency noise is added globally — it only perturbs near coastlines.
+    // Soft geographic blobs give recognizable continents; low-frequency noise
+    // perturbs the coastline so edges look organic instead of blocky.
     const lon = (u - 0.5) * 360;
     const lat = (0.5 - v) * 180;
 
-    // ===== Base noise: large-scale continental structure (~2-3 landmasses) =====
-    // This gives the underlying pattern of where continents generally are.
-    let field = fbm(u * 1.8 + 0.5, v * 1.4 + 0.3, 3) * 0.35 - 0.05;
-
-    // ===== Soft continent mass blobs =====
-    // Each blob is a very soft, large ellipse that adds "continental" character.
-    // They overlap and blend smoothly, creating realistic shapes.
-    // Parameters: (cx, cy, hx, hy, weight)
-
-    // North America (large)
-    field = Math.max(field, fbm(u * 0.8 + 3.2, v * 0.7 + 2.1, 2) * 0.6 - 0.08);
-    field += 0.18 * Math.exp(-((lon + 100) * (lon + 100) / 2600.0 + (lat - 52) * (lat - 52) / 600.0));
-    field += 0.14 * Math.exp(-((lon + 135) * (lon + 135) / 800.0 + (lat - 62) * (lat - 62) / 350.0));
-    field += 0.12 * Math.exp(-((lon + 90) * (lon + 90) / 400.0 + (lat - 30) * (lat - 30) / 250.0));
-    field += 0.10 * Math.exp(-((lon + 110) * (lon + 110) / 120.0 + (lat - 28) * (lat - 28) / 500.0));
-    field += 0.09 * Math.exp(-((lon + 55) * (lon + 55) / 200.0 + (lat - 47) * (lat - 47) / 300.0));
-    field += 0.08 * Math.exp(-((lon + 95) * (lon + 95) / 200.0 + (lat - 22) * (lat - 22) / 80.0));
-    field += 0.07 * Math.exp(-((lon + 80) * (lon + 80) / 50.0 + (lat - 29) * (lat - 29) / 400.0));
-    field += 0.07 * Math.exp(-((lon - 92) * (lon - 92) / 60.0 + (lat - 34) * (lat - 34) / 80.0));
-    field += 0.07 * Math.exp(-((lon + 45) * (lon + 45) / 100.0 + (lat - 60) * (lat - 60) / 200.0));
-    field += 0.06 * Math.exp(-((lon + 12) * (lon + 12) / 80.0 + (lat - 30) * (lat - 30) / 60.0));
-
+    let seed = 0;
+    // North America
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -100, 52, 26, 12, 0.16));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -118, 46, 8, 10, 0.20));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -104, 34, 9, 6, 0.22));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -86, 32, 6, 4, 0.22));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -92, 22, 8, 5, 0.24));
     // South America
-    field += 0.16 * Math.exp(-((lon + 55) * (lon + 55) / 1500.0 + (lat - 8) * (lat - 8) / 700.0));
-    field += 0.14 * Math.exp(-((lon + 50) * (lon + 50) / 600.0 + (lat + 12) * (lat + 12) / 900.0));
-    field += 0.12 * Math.exp(-((lon + 70) * (lon + 70) / 400.0 + (lat + 28) * (lat + 28) / 800.0));
-    field += 0.10 * Math.exp(-((lon + 65) * (lon + 65) / 200.0 + (lat + 38) * (lat + 38) / 500.0));
-    field += 0.08 * Math.exp(-((lon + 72) * (lon + 72) / 60.0 + (lat + 50) * (lat + 50) / 300.0));
-    field += 0.07 * Math.exp(-((lon + 55) * (lon + 55) / 250.0 + (lat + 32) * (lat + 32) / 250.0));
-    field += 0.06 * Math.exp(-((lon + 60) * (lon + 60) / 200.0 + (lat - 2) * (lat - 2) / 150.0));
-
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -70, 6, 9, 9, 0.22));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -49, -13, 15, 13, 0.20));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -66, -30, 9, 15, 0.22));
     // Africa
-    field += 0.16 * Math.exp(-((lon - 16) * (lon - 16) / 2000.0 + (lat - 5) * (lat - 5) / 1400.0));
-    field += 0.13 * Math.exp(-((lon - 22) * (lon - 22) / 500.0 + (lat + 8) * (lat + 8) / 700.0));
-    field += 0.12 * Math.exp(-((lon - 25) * (lon - 25) / 400.0 + (lat + 22) * (lat + 22) / 600.0));
-    field += 0.10 * Math.exp(-((lon - 8) * (lon - 8) / 250.0 + (lat + 12) * (lat + 12) / 300.0));
-    field += 0.09 * Math.exp(-((lon - 42) * (lon - 42) / 150.0 + (lat - 4) * (lat - 4) / 400.0));
-    field += 0.08 * Math.exp(-((lon - 14) * (lon - 14) / 200.0 + (lat - 18) * (lat - 18) / 250.0));
-    field += 0.07 * Math.exp(-((lon - 18) * (lon - 18) / 120.0 + (lat + 32) * (lat + 32) / 150.0));
-    field += 0.06 * Math.exp(-((lon - 10) * (lon - 10) / 150.0 + (lat + 3) * (lat + 3) / 180.0));
-
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 10, 20, 20, 9, 0.20));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 22, -3, 9, 10, 0.22));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 24, -22, 11, 11, 0.22));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -8, 11, 7, 7, 0.24));
     // Europe
-    field += 0.13 * Math.exp(-((lon - 10) * (lon - 10) / 1600.0 + (lat - 50) * (lat - 50) / 800.0));
-    field += 0.09 * Math.exp(-((lon - 2) * (lon - 2) / 200.0 + (lat - 44) * (lat - 44) / 200.0));
-    field += 0.08 * Math.exp(-((lon - 16) * (lon - 16) / 150.0 + (lat - 62) * (lat - 62) / 400.0));
-    field += 0.07 * Math.exp(-((lon - 10) * (lon - 10) / 120.0 + (lat - 40) * (lat - 40) / 120.0));
-    field += 0.07 * Math.exp(-((lon - 18) * (lon - 18) / 120.0 + (lat - 64) * (lat - 64) / 250.0));
-    field += 0.06 * Math.exp(-((lon + 2) * (lon + 2) / 50.0 + (lat - 52) * (lat - 52) / 200.0));
-    field += 0.05 * Math.exp(-((lon - 6) * (lon - 6) / 30.0 + (lat - 53) * (lat - 53) / 120.0));
-    field += 0.05 * Math.exp(-((lon - 28) * (lon - 28) / 100.0 + (lat - 58) * (lat - 58) / 120.0));
-    field += 0.05 * Math.exp(-((lon + 16) * (lon + 16) / 80.0 + (lat - 58) * (lat - 58) / 100.0));
-    field += 0.04 * Math.exp(-((lon + 14) * (lon + 14) / 60.0 + (lat - 64) * (lat - 64) / 100.0));
-    field += 0.04 * Math.exp(-((lon - 20) * (lon - 20) / 60.0 + (lat - 64) * (lat - 64) / 60.0));
-
-    // Asia (very large)
-    field += 0.15 * Math.exp(-((lon - 80) * (lon - 80) / 6000.0 + (lat - 50) * (lat - 50) / 1800.0));
-    field += 0.12 * Math.exp(-((lon - 75) * (lon - 75) / 800.0 + (lat - 40) * (lat - 40) / 600.0));
-    field += 0.10 * Math.exp(-((lon - 90) * (lon - 90) / 500.0 + (lat - 32) * (lat - 32) / 500.0));
-    field += 0.09 * Math.exp(-((lon - 105) * (lon - 105) / 600.0 + (lat - 28) * (lat - 28) / 400.0));
-    field += 0.08 * Math.exp(-((lon - 55) * (lon - 55) / 500.0 + (lat - 28) * (lat - 28) / 200.0));
-    field += 0.07 * Math.exp(-((lon - 120) * (lon - 120) / 400.0 + (lat - 40) * (lat - 40) / 350.0));
-    field += 0.07 * Math.exp(-((lon - 45) * (lon - 45) / 250.0 + (lat - 26) * (lat - 26) / 120.0));
-    field += 0.06 * Math.exp(-((lon - 140) * (lon - 140) / 500.0 + (lat - 55) * (lat - 55) / 400.0));
-    field += 0.06 * Math.exp(-((lon - 150) * (lon - 150) / 300.0 + (lat - 55) * (lat - 55) / 250.0));
-    field += 0.05 * Math.exp(-((lon - 160) * (lon - 160) / 300.0 + (lat - 56) * (lat - 56) / 400.0));
-    field += 0.05 * Math.exp(-((lon - 115) * (lon - 115) / 200.0 + (lat - 14) * (lat - 14) / 300.0));
-    field += 0.05 * Math.exp(-((lon - 34) * (lon - 34) / 250.0 + (lat - 38) * (lat - 38) / 200.0));
-    field += 0.04 * Math.exp(-((lon - 70) * (lon - 70) / 100.0 + (lat - 36) * (lat - 36) / 80.0));
-    field += 0.04 * Math.exp(-((lon - 120) * (lon - 120) / 80.0 + (lat - 36) * (lat - 36) / 250.0));
-    field += 0.04 * Math.exp(-((lon - 128) * (lon - 128) / 40.0 + (lat - 36) * (lat - 36) / 200.0));
-    field += 0.03 * Math.exp(-((lon - 88) * (lon - 88) / 300.0 + (lat - 20) * (lat - 20) / 250.0));
-    field += 0.03 * Math.exp(-((lon - 102) * (lon - 102) / 150.0 + (lat - 5) * (lat - 5) / 300.0));
-    field += 0.03 * Math.exp(-((lon - 36) * (lon - 36) / 80.0 + (lat - 32) * (lat - 32) / 100.0));
-    field += 0.03 * Math.exp(-((lon - 56) * (lon - 56) / 300.0 + (lat - 32) * (lat - 32) / 200.0));
-
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 16, 51, 19, 9, 0.20));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -4, 40, 6, 5, 0.24));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 18, 63, 7, 5, 0.26));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 12, 42, 4, 4, 0.26));
+    // Asia
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 92, 60, 38, 9, 0.18));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 74, 44, 16, 7, 0.22));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 79, 22, 7, 11, 0.22));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 106, 33, 15, 9, 0.20));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 112, 16, 9, 7, 0.24));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 46, 28, 9, 6, 0.24));
     // Australia
-    field += 0.14 * Math.exp(-((lon - 134) * (lon - 134) / 1200.0 + (lat + 24) * (lat + 24) / 500.0));
-    field += 0.10 * Math.exp(-((lon - 142) * (lon - 142) / 300.0 + (lat + 18) * (lat + 18) / 250.0));
-    field += 0.08 * Math.exp(-((lon - 128) * (lon - 128) / 200.0 + (lat + 26) * (lat + 26) / 200.0));
-    field += 0.05 * Math.exp(-((lon - 147) * (lon - 147) / 60.0 + (lat + 42) * (lat + 42) / 40.0));
-
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, 133, -25, 11, 7, 0.20));
     // Greenland
-    field += 0.12 * Math.exp(-((lon + 42) * (lon + 42) / 500.0 + (lat - 72) * (lat - 72) / 250.0));
-    field += 0.08 * Math.exp(-((lon + 55) * (lon + 55) / 200.0 + (lat - 60) * (lat - 60) / 200.0));
+    seed = Math.max(seed, TextureFactory._softBox(lon, lat, -42, 72, 9, 7, 0.22));
 
-    // Indonesia / SE Asia islands
-    field += 0.09 * Math.exp(-((lon - 114) * (lon - 114) / 250.0 + (lat - 1) * (lat - 1) / 200.0));
-    field += 0.08 * Math.exp(-((lon - 102) * (lon - 102) / 80.0 + (lat + 1) * (lat + 1) / 350.0));
-    field += 0.07 * Math.exp(-((lon - 110) * (lon - 110) / 150.0 + (lat + 7) * (lat + 7) / 40.0));
-    field += 0.06 * Math.exp(-((lon - 122) * (lon - 122) / 100.0 + (lat + 1) * (lat + 1) / 350.0));
-    field += 0.08 * Math.exp(-((lon - 140) * (lon - 140) / 500.0 + (lat + 3) * (lat + 3) / 300.0));
-    field += 0.04 * Math.exp(-((lon - 124) * (lon - 124) / 60.0 + (lat - 10) * (lat - 10) / 200.0));
-    field += 0.04 * Math.exp(-((lon - 126) * (lon - 126) / 60.0 + (lat - 7) * (lat - 7) / 150.0));
+    // Organic coastline perturbation: long bends + fine fringe (seam falls over the Pacific).
+    seed += fbm(u * 4.0 + 2.7, v * 3.0 + 6.3, 4) * 0.30;
+    seed += fbm(u * 13.0 + 8.1, v * 9.0 + 2.9, 3) * 0.08;
 
-    // Madagascar
-    field += 0.07 * Math.exp(-((lon - 47) * (lon - 47) / 60.0 + (lat + 18) * (lat + 18) / 300.0));
-
-    // Japan
-    field += 0.06 * Math.exp(-((lon - 138) * (lon - 138) / 60.0 + (lat - 37) * (lat - 37) / 250.0));
-    field += 0.04 * Math.exp(-((lon - 142) * (lon - 142) / 30.0 + (lat - 40) * (lat - 40) / 200.0));
-
-    // New Zealand (small, south of Australia)
-    field += 0.05 * Math.exp(-((lon - 173) * (lon - 173) / 60.0 + (lat + 42) * (lat + 42) / 250.0));
-    field += 0.04 * Math.exp(-((lon - 174) * (lon - 174) / 30.0 + (lat + 40) * (lat + 40) / 150.0));
-
-    // ===================== Coastline perturbation =====
-    // Only perturb near the shoreline (where field ≈ 0.35–0.65), not everywhere.
-    // This avoids visible banding in the open ocean and deep land.
-    let coastWavelength = 25.0;
-    let coastFreq = (lon % coastWavelength + coastWavelength) / coastWavelength;
-    let coastNoise = fbm(coastFreq * 8.0 + 1.1, v * 12.0 + 2.3, 3) * 0.06;
-
-    // Medium-scale perturbation (peninsulas, bays)
-    let mFreq = (lon % 70.0 + 70.0) / 70.0;
-    coastNoise += fbm(mFreq * 3.0 + 5.7, v * 4.5 + 8.2, 3) * 0.04;
-
-    // Apply ONLY near coastlines
-    let coastStrength = 0.0;
-    if (field > 0.25 && field < 0.75) {
-      coastStrength = 1.0 - Math.abs(field - 0.5) * 4.0; // peaks at 0.5, zero at edges
-      coastStrength = coastStrength * coastStrength; // quadratic falloff
-    }
-    field += coastNoise * coastStrength;
-
-    // Clamp
-    return field < 0 ? 0 : (field > 1 ? 1 : field);
+    return seed;
   }
 
   static _earth() {
@@ -2370,7 +1640,7 @@ const KNOWN_NEOS = {
     palermoScale: '-2.12',
     hazard: false,
     el: { a: 1.258, e: 0.174, i: 2.89, O: 338.4, w: 24.3 },
-    description: 'Discovered in Feb 2023 with an initial 1-in-560 impact probability for Valentine’s Day 2046, later safely ruled out following high-precision radar refinement.'
+    description: 'Discovered in Feb 2023 with an initial 1-in-560 impact probability for Valentineâ€™s Day 2046, later safely ruled out following high-precision radar refinement.'
   }
 };
 
@@ -3397,19 +2667,19 @@ class SolarSystem {
    16. UI MANAGER & INTERACTIVE CONTROLS
    =========================================================================== */
 const fmtNum = (n) => {
-  if (n == null || !Number.isFinite(n)) return '—';
+  if (n == null || !Number.isFinite(n)) return 'â€”';
   if (Math.abs(n) < 1e-3 && n !== 0) return n.toExponential(3);
   if (Math.abs(n) > 1e9) return n.toExponential(3);
   return Number(n.toLocaleString('en-US', { maximumFractionDigits: 2 }));
 };
 const fmtDist = (km, mode) => {
-  if (km == null || !Number.isFinite(km)) return '—';
+  if (km == null || !Number.isFinite(km)) return 'â€”';
   if (mode === 'AU') return (km / AU_KM).toFixed(5) + ' AU';
   if (mode === 'sci') return km.toExponential(3) + ' km';
   return fmtNum(km) + ' km';
 };
 const fmtMass = (kg, mode) => {
-  if (mode === 'AU') return (kg / BODIES.sun.mass).toExponential(4) + ' M☉';
+  if (mode === 'AU') return (kg / BODIES.sun.mass).toExponential(4) + ' Mâ˜‰';
   return kg.toExponential(3) + ' kg';
 };
 
@@ -3576,7 +2846,7 @@ class UIManager {
   togglePlay() {
     this.s.clock.paused = !this.s.clock.paused;
     const b = document.getElementById('btnPause');
-    b.textContent = this.s.clock.paused ? '▶' : '❚❚';
+    b.textContent = this.s.clock.paused ? 'â–¶' : 'âšâš';
     b.classList.toggle('play', !this.s.clock.paused);
   }
 
@@ -3738,19 +3008,19 @@ class UIManager {
 
       card.innerHTML = `
         <div class="neo-header">
-          <div class="neo-title">☄ ${neo.name}</div>
+          <div class="neo-title">â˜„ ${neo.name}</div>
           <span class="neo-tag ${neo.hazard ? 'hazard' : ''}">${neo.hazard ? 'PHA Hazard' : 'Close Flyby'}</span>
         </div>
         <div class="neo-details">
           <b>Close Approach:</b> ${dateStr}<br>
           <b>Miss Distance:</b> ${distStr}<br>
-          <b>Diameter:</b> ~${neo.diameter} m · <b>Speed:</b> ${neo.velocityKmS} km/s · <b>Type:</b> ${neo.material}<br>
-          <div class="neo-corridor"><b>3σ Error Corridor:</b> ±${fmtNum(neo.errorMarginKm)} km</div>
+          <b>Diameter:</b> ~${neo.diameter} m Â· <b>Speed:</b> ${neo.velocityKmS} km/s Â· <b>Type:</b> ${neo.material}<br>
+          <div class="neo-corridor"><b>3Ïƒ Error Corridor:</b> Â±${fmtNum(neo.errorMarginKm)} km</div>
           <div style="font-size:8.5px; color:var(--text-muted); margin-top:2px;">${neo.description}</div>
         </div>
         <div class="neo-actions">
-          <button class="btn btn-view-traj" title="View trajectory and 3σ uncertainty error corridor">🔍 Trajectory</button>
-          <button class="btn btn-impact" title="Schedule and simulate Earth impact scenario">💥 Simulate Impact</button>
+          <button class="btn btn-view-traj" title="View trajectory and 3Ïƒ uncertainty error corridor">ðŸ” Trajectory</button>
+          <button class="btn btn-impact" title="Schedule and simulate Earth impact scenario">ðŸ’¥ Simulate Impact</button>
         </div>
       `;
 
@@ -3788,7 +3058,7 @@ class UIManager {
     }
     s.selectAsteroid(ev.key);
     s.focusSelected();
-    this.toast(`Viewing trajectory & 3σ error corridor (±${fmtNum(neo.errorMarginKm)} km) for ${neo.name}`);
+    this.toast(`Viewing trajectory & 3Ïƒ error corridor (Â±${fmtNum(neo.errorMarginKm)} km) for ${neo.name}`);
   }
 
   scheduleNEOImpact(neoKey, isPreview = false) {
@@ -3839,8 +3109,8 @@ class UIManager {
       ['Earth & Moon System', 'earthmoon', 'High-resolution Earth-Moon orbital telemetry'],
       ['Inner Solar System', 'inner', 'Mercury, Venus, Earth, and Mars'],
       ['Full Solar System', 'outer', 'Complete planetary system to Neptune'],
-      ['Impact — Earth (500m Iron)', 'imp_earth', 'Simulated Earth collision scenario'],
-      ['Impact — Moon (300m Stone)', 'imp_moon', 'Simulated lunar surface impact'],
+      ['Impact â€” Earth (500m Iron)', 'imp_earth', 'Simulated Earth collision scenario'],
+      ['Impact â€” Moon (300m Stone)', 'imp_moon', 'Simulated lunar surface impact'],
       ['Multiple Simultaneous Impacts', 'multi', 'Simulations across Earth, Moon, and Mars']
     ];
     for (const [label, val, desc] of items) {
@@ -3932,11 +3202,11 @@ class UIManager {
     target.innerHTML = '';
     const box = document.createElement('div'); box.className = 'obj-group'; box.textContent = 'Scientific Data Export';
     const wrap = document.createElement('div'); wrap.style.padding = '4px 10px 14px'; wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.gap = '4px';
-    const b1 = document.createElement('button'); b1.className = 'btn'; b1.textContent = '⤓ Export Simulation State (JSON)';
+    const b1 = document.createElement('button'); b1.className = 'btn'; b1.textContent = 'â¤“ Export Simulation State (JSON)';
     b1.onclick = () => this.exportState();
-    const b2 = document.createElement('button'); b2.className = 'btn'; b2.textContent = '⤓ Export Impact Physics (JSON)';
+    const b2 = document.createElement('button'); b2.className = 'btn'; b2.textContent = 'â¤“ Export Impact Physics (JSON)';
     b2.onclick = () => this.exportImpact();
-    const b3 = document.createElement('button'); b3.className = 'btn'; b3.textContent = '⧉ Copy Telemetry to Clipboard';
+    const b3 = document.createElement('button'); b3.className = 'btn'; b3.textContent = 'â§‰ Copy Telemetry to Clipboard';
     b3.onclick = () => this.copyState();
     wrap.appendChild(b1); wrap.appendChild(b2); wrap.appendChild(b3);
     target.appendChild(box);
@@ -4036,15 +3306,15 @@ class UIManager {
     const mc = document.getElementById('modalContent');
     const now = this.s.clock.date;
     mc.innerHTML = `
-      <h2>☄ Configure Asteroid Impact Event</h2>
+      <h2>â˜„ Configure Asteroid Impact Event</h2>
       <div class="desc">Define physical properties and orbital encounter trajectory for a simulated impactor. Energy dissipation and crater formation calculations are performed in real time.</div>
 
       <div class="section-label" style="margin-top:0">Quick Load Known NEO / PHA Asteroid</div>
       <div class="preset-bar">
-        <button class="btn" data-neo="apophis">☄ 99942 Apophis (2029)</button>
-        <button class="btn" data-neo="bennu">☄ 101955 Bennu (2037)</button>
-        <button class="btn" data-neo="da1950">☄ (29075) 1950 DA (2039)</button>
-        <button class="btn" data-neo="dw2023">☄ 2023 DW (2046)</button>
+        <button class="btn" data-neo="apophis">â˜„ 99942 Apophis (2029)</button>
+        <button class="btn" data-neo="bennu">â˜„ 101955 Bennu (2037)</button>
+        <button class="btn" data-neo="da1950">â˜„ (29075) 1950 DA (2039)</button>
+        <button class="btn" data-neo="dw2023">â˜„ 2023 DW (2046)</button>
       </div>
 
       <div class="modal-grid">
@@ -4061,20 +3331,20 @@ class UIManager {
 
         <div class="field"><label>Asteroid Diameter (m)</label><input type="number" id="mDiam" value="500" min="1"></div>
         <div class="field"><label>Composition Material</label><select id="mMaterial">${Object.keys(DENSITIES).map(m => `<option value="${m}">${m}</option>`).join('')}</select></div>
-        <div class="field"><label>Bulk Density (kg/m³)</label><input type="number" id="mDensity" value="7800" min="100"></div>
+        <div class="field"><label>Bulk Density (kg/mÂ³)</label><input type="number" id="mDensity" value="7800" min="100"></div>
         <div class="field"><label>Approach Velocity</label><input type="number" id="mVel" value="25" min="0.1"></div>
         <div class="field"><label>Velocity Unit</label><select id="mVelUnit"><option value="1000">km/s</option><option value="1">m/s</option></select></div>
-        <div class="field"><label>Approach Azimuth (°)</label><input type="number" id="mAz" value="90" min="0" max="360"></div>
-        <div class="field"><label>Approach Elevation (°)</label><input type="number" id="mElev" value="25" min="0" max="89"></div>
-        <div class="field"><label>Impact Angle from Vertical (°)</label><input type="number" id="mAngle" value="45" min="5" max="85"></div>
+        <div class="field"><label>Approach Azimuth (Â°)</label><input type="number" id="mAz" value="90" min="0" max="360"></div>
+        <div class="field"><label>Approach Elevation (Â°)</label><input type="number" id="mElev" value="25" min="0" max="89"></div>
+        <div class="field"><label>Impact Angle from Vertical (Â°)</label><input type="number" id="mAngle" value="45" min="5" max="85"></div>
       </div>
 
       <div class="section-label">Calculated Physical Estimates</div>
       <div class="modal-grid" style="gap:8px">
-        <div class="stat"><span class="k">Impact Velocity (v_imp)</span><span class="v" id="mVimp">—</span></div>
-        <div class="stat"><span class="k">Kinetic Energy (E = ½mv²)</span><span class="v" id="mEnergy">—</span></div>
-        <div class="stat"><span class="k">TNT Equivalent</span><span class="v" id="mMega">—</span></div>
-        <div class="stat"><span class="k">Approx. Crater Diameter</span><span class="v" id="mCrater">—</span></div>
+        <div class="stat"><span class="k">Impact Velocity (v_imp)</span><span class="v" id="mVimp">â€”</span></div>
+        <div class="stat"><span class="k">Kinetic Energy (E = Â½mvÂ²)</span><span class="v" id="mEnergy">â€”</span></div>
+        <div class="stat"><span class="k">TNT Equivalent</span><span class="v" id="mMega">â€”</span></div>
+        <div class="stat"><span class="k">Approx. Crater Diameter</span><span class="v" id="mCrater">â€”</span></div>
       </div>
 
       <div class="err" id="mErr"></div>
@@ -4146,7 +3416,7 @@ class UIManager {
 
     if (!Number.isFinite(diam) || diam <= 0) { err.textContent = 'Diameter must be > 0.'; return { ok: false }; }
     if (!Number.isFinite(density) || density <= 0) { err.textContent = 'Density must be > 0.'; return { ok: false }; }
-    if (!Number.isFinite(vel) || vel < 0) { err.textContent = 'Velocity must be ≥ 0.'; return { ok: false }; }
+    if (!Number.isFinite(vel) || vel < 0) { err.textContent = 'Velocity must be â‰¥ 0.'; return { ok: false }; }
     if (mo < 1 || mo > 12) { err.textContent = 'Month must be 1-12.'; return { ok: false }; }
     const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
     if (d < 1 || d > daysInMonth) { err.textContent = `Day must be 1-${daysInMonth}.`; return { ok: false }; }
@@ -4215,10 +3485,10 @@ class UIManager {
         <span class="dc" style="background:${col}"></span>
         <div class="em" data-key="${e.key}">
           <b>${e.targetName}</b>
-          <small>${e.asteroid.material} · ${s.clock.fmtDate(s.clock._jdToGregorian(e.asteroid.impactDate))} · <span data-st>${status}</span></small>
+          <small>${e.asteroid.material} Â· ${s.clock.fmtDate(s.clock._jdToGregorian(e.asteroid.impactDate))} Â· <span data-st>${status}</span></small>
         </div>
         <button data-prev="${e.key}">Preview</button>
-        <button class="rm" data-rm="${e.key}">✕</button>
+        <button class="rm" data-rm="${e.key}">âœ•</button>
       `;
       body.appendChild(row);
     });
@@ -4258,7 +3528,7 @@ class UIManager {
     if (!isPaused) {
       const absSp = Math.abs(sp);
       const sign = sp < 0 ? 'REV ' : '';
-      if (Math.abs(absSp - 1 / 86400) < 1e-7) label = sign + '1× (1s/s)';
+      if (Math.abs(absSp - 1 / 86400) < 1e-7) label = sign + '1Ã— (1s/s)';
       else if (Math.abs(absSp - 60 / 86400) < 1e-6) label = sign + '1 min/s';
       else if (Math.abs(absSp - 1 / 24) < 1e-4) label = sign + '1 hr/s';
       else if (Math.abs(absSp - 1.0) < 1e-3) label = sign + '1 day/s';
@@ -4306,8 +3576,8 @@ class UIManager {
     const a = event.asteroid, t = event.targetBody;
     const hud = document.getElementById('impactHud');
     hud.classList.add('on');
-    document.getElementById('impactBanner').innerHTML = `SURFACE IMPACT DETECTED · <b>${t.data.name.toUpperCase()}</b>`;
-    document.getElementById('impactNum').textContent = `${(a.vImpact / 1000).toFixed(2)} km/s · ${a.megatons > 1e6 ? a.megatons.toExponential(2) : a.megatons.toFixed(1)} MT TNT · Est. Crater: ~${a.craterDiameter > 1000 ? (a.craterDiameter / 1000).toFixed(1) + ' km' : a.craterDiameter.toFixed(0) + ' m'}`;
+    document.getElementById('impactBanner').innerHTML = `SURFACE IMPACT DETECTED Â· <b>${t.data.name.toUpperCase()}</b>`;
+    document.getElementById('impactNum').textContent = `${(a.vImpact / 1000).toFixed(2)} km/s Â· ${a.megatons > 1e6 ? a.megatons.toExponential(2) : a.megatons.toFixed(1)} MT TNT Â· Est. Crater: ~${a.craterDiameter > 1000 ? (a.craterDiameter / 1000).toFixed(1) + ' km' : a.craterDiameter.toFixed(0) + ' m'}`;
 
     const fl = document.getElementById('impactFlash');
     fl.style.transition = 'none'; fl.style.opacity = '0.95';
@@ -4334,7 +3604,7 @@ class UIManager {
     const s = this.s;
     const el = document.getElementById('infoBody');
     if (!key) {
-      el.innerHTML = '<div class="empty"><div class="big">◐</div>Select a celestial body or scheduled asteroid to inspect physical properties, orbital vectors, and real-time encounter telemetry.</div>';
+      el.innerHTML = '<div class="empty"><div class="big">â—</div>Select a celestial body or scheduled asteroid to inspect physical properties, orbital vectors, and real-time encounter telemetry.</div>';
       return;
     }
 
@@ -4342,19 +3612,19 @@ class UIManager {
       const evKey = key.slice(6);
       const ev = s.events.find(e => e.key === evKey);
       if (!ev) {
-        el.innerHTML = '<div class="empty"><div class="big">◐</div>Impact event has concluded or was removed.</div>';
+        el.innerHTML = '<div class="empty"><div class="big">â—</div>Impact event has concluded or was removed.</div>';
         return;
       }
       const a = ev.asteroid;
       const t = ev.targetBody;
       const tti = a.impactDate - s.clock.jd;
       const ttiStr = tti > 0 ? (tti >= 1 ? tti.toFixed(2) + ' days' : (tti * 24).toFixed(1) + ' hours') : 'Impact Reached';
-      const distStr = a.distKm != null ? fmtDist(a.distKm, this.unit) : '—';
+      const distStr = a.distKm != null ? fmtDist(a.distKm, this.unit) : 'â€”';
       const name = a.name || `${a.diameter}m ${a.material} Impactor`;
 
       let html = '';
       html += `<div class="info-title"><span class="sw" style="background:#f87171; box-shadow:0 0 12px rgba(248,113,113,0.8)"></span><div><h2>${name}</h2><div class="ty" style="color:var(--danger)">Near-Earth Asteroid / Impactor</div></div></div>`;
-      html += `<div class="info-sub">Target Body: <b>${t.data.name}</b> · Trajectory: Approach Vector</div>`;
+      html += `<div class="info-sub">Target Body: <b>${t.data.name}</b> Â· Trajectory: Approach Vector</div>`;
 
       html += `<div class="info-actions">
         <div class="unit-toggle" id="unitToggle">
@@ -4368,16 +3638,16 @@ class UIManager {
       html += this.stat('Mean Diameter', fmtDist(a.diameter / 1000, this.unit));
       html += this.stat('Estimated Mass', fmtMass(a.mass, this.unit));
       html += this.stat('Composition Material', a.material);
-      html += this.stat('Bulk Density', `${a.density.toLocaleString()} kg/m³`);
+      html += this.stat('Bulk Density', `${a.density.toLocaleString()} kg/mÂ³`);
 
       html += `<div class="section-label">Encounter & Trajectory Telemetry</div>`;
       html += this.stat('Time to Impact (TTI)', ttiStr);
       html += this.stat('Distance to Surface', distStr);
       html += this.stat('Approach Velocity (v_inf)', `${(a.velocity / 1000).toFixed(2)} km/s`);
       html += this.stat('Atmospheric Entry Velocity (v_imp)', `${(a.vImpact / 1000).toFixed(2)} km/s`);
-      html += this.stat('Approach Azimuth / Elevation', `${(a.approachAz || 90).toFixed(1)}° / ${(a.approachElev || 25).toFixed(1)}°`);
+      html += this.stat('Approach Azimuth / Elevation', `${(a.approachAz || 90).toFixed(1)}Â° / ${(a.approachElev || 25).toFixed(1)}Â°`);
       if (a.errorMarginKm > 0) {
-        html += this.stat('3σ Orbital Error Margin', `±${fmtNum(a.errorMarginKm)} km`);
+        html += this.stat('3Ïƒ Orbital Error Margin', `Â±${fmtNum(a.errorMarginKm)} km`);
       }
 
       html += `<div class="section-label">Estimated Impact Consequences</div>`;
@@ -4387,8 +3657,8 @@ class UIManager {
       html += this.stat('Estimated Crater Depth', a.craterDepth > 1000 ? (a.craterDepth / 1000).toFixed(2) + ' km' : a.craterDepth.toFixed(1) + ' m');
 
       html += `<div class="info-actions" style="margin-top:14px; gap:8px;">
-        <button class="btn btn-primary" id="infoFocus" style="flex:1">◎ Focus Asteroid</button>
-        <button class="btn" id="infoPreview" style="flex:1">▶ Preview Encounter</button>
+        <button class="btn btn-primary" id="infoFocus" style="flex:1">â—Ž Focus Asteroid</button>
+        <button class="btn" id="infoPreview" style="flex:1">â–¶ Preview Encounter</button>
       </div>`;
 
       el.innerHTML = html;
@@ -4443,8 +3713,8 @@ class UIManager {
     html += this.stat('Mean Diameter', fmtDist(d.radius * 2, this.unit));
     html += this.stat('Mean Radius', fmtDist(d.radius, this.unit));
     html += this.stat('Mass', fmtMass(d.mass, this.unit));
-    html += this.stat('Surface Gravity', d.gravity.toFixed(2) + ' m/s²');
-    if (d.tilt != null) html += this.stat('Axial Tilt', d.tilt.toFixed(2) + '°');
+    html += this.stat('Surface Gravity', d.gravity.toFixed(2) + ' m/sÂ²');
+    if (d.tilt != null) html += this.stat('Axial Tilt', d.tilt.toFixed(2) + 'Â°');
 
     html += `<div class="section-label">Orbital Telemetry (Current Epoch)</div>`;
     html += this.stat('Distance from Sun', fmtDist(distSunKm, this.unit));
@@ -4453,7 +3723,7 @@ class UIManager {
 
     if (!isMoon && d.el) {
       html += this.stat('Orbital Eccentricity', d.el.e.toFixed(5));
-      html += this.stat('Orbital Inclination', (d.el.i).toFixed(3) + '°');
+      html += this.stat('Orbital Inclination', (d.el.i).toFixed(3) + 'Â°');
       if (body._ecliptic) {
         html += this.stat('Heliocentric X', fmtDist(body._ecliptic.x * AU_KM, this.unit));
         html += this.stat('Heliocentric Y', fmtDist(body._ecliptic.y * AU_KM, this.unit));
@@ -4461,19 +3731,19 @@ class UIManager {
       }
     } else if (isMoon) {
       html += this.stat('Orbital Period', d.period.toFixed(2) + ' days');
-      html += this.stat('Orbital Inclination', d.inc.toFixed(2) + '°');
+      html += this.stat('Orbital Inclination', d.inc.toFixed(2) + 'Â°');
       html += this.stat('Mean Parent Distance', fmtDist(d.dist, this.unit));
     }
 
     if (key === 'earth') {
       html += `<div class="section-label">Earth Special Telemetry</div>`;
       html += this.stat('Moon Mean Distance', fmtDist(384400, this.unit));
-      html += this.stat('Diurnal Rotation Phase', Math.abs(rotAngle).toFixed(1) + '°');
+      html += this.stat('Diurnal Rotation Phase', Math.abs(rotAngle).toFixed(1) + 'Â°');
       html += this.stat('Simulated UTC Time', s.clock.fmtDate(s.clock.date));
     }
 
     html += `<div class="info-actions" style="margin-top:14px">
-      <button class="btn btn-primary" id="infoFocus" style="flex:1">◎ Focus Camera</button>
+      <button class="btn btn-primary" id="infoFocus" style="flex:1">â—Ž Focus Camera</button>
     </div>`;
 
     html += `<div style="margin-top:10px; color:var(--text-muted); font-size:9px; line-height:1.45;">
@@ -4513,7 +3783,7 @@ class UIManager {
         const ev = s.events.find(e => e.key === evKey);
         if (!ev || !ev.asteroid || !ev.asteroid.mesh) continue;
         body = ev.asteroid;
-        labelName = '☄ ' + (body.name || `${body.diameter}m Impactor`);
+        labelName = 'â˜„ ' + (body.name || `${body.diameter}m Impactor`);
       } else if (key.startsWith('moon:')) {
         body = s.moons[key.slice(5)];
         labelName = body ? body.data.name : '';
@@ -4579,6 +3849,4 @@ async function main() {
 }
 
 main();
-</script>
-</body>
-</html>
+
