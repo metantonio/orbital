@@ -1,1059 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
-<meta name="theme-color" content="#030712" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<title>ORBIT — Interactive 3D Solar System &amp; Asteroid Impact Laboratory</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;0,900;1,500;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&display=swap" rel="stylesheet" />
-<style>
-  :root {
-    --bg: #030712;
-    --panel-bg: rgba(11, 19, 38, 0.78);
-    --panel-solid: #0b1326;
-    --panel-hover: rgba(20, 35, 68, 0.85);
-    --border: rgba(56, 189, 248, 0.22);
-    --border-highlight: rgba(56, 189, 248, 0.55);
-    --accent: #38bdf8;
-    --accent-glow: rgba(56, 189, 248, 0.35);
-    --accent-2: #fbbf24;
-    --accent-3: #a78bfa;
-    --text: #f0f6fc;
-    --text-dim: #94a3b8;
-    --text-muted: #64748b;
-    --danger: #f87171;
-    --good: #34d399;
-    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
-
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0; padding: 0;
-    width: 100%; height: 100%;
-    overflow: hidden;
-    overscroll-behavior: none;
-    -webkit-text-size-adjust: 100%;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 13px;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-  button, input, select { touch-action: manipulation; }
-
-  #app { position: fixed; inset: 0; }
-  canvas { display: block; width: 100%; height: 100%; }
-
-  /* ---------- Loading Overlay ---------- */
-  #loading {
-    position: fixed; inset: 0; z-index: 9999;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: radial-gradient(circle at 50% 40%, #0c1a3a 0%, #030712 75%);
-    transition: opacity 0.6s ease;
-  }
-  #loading h1 {
-    font-weight: 700; letter-spacing: 0.45em; font-size: 28px; margin: 0 0 6px;
-    background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  #loading .sub {
-    color: var(--text-dim); letter-spacing: 0.25em; font-size: 11px; margin-bottom: 30px; text-transform: uppercase;
-  }
-  .spinner {
-    width: 52px; height: 52px; border-radius: 50%;
-    border: 2px solid rgba(56, 189, 248, 0.15);
-    border-top-color: var(--accent);
-    animation: spin 0.9s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #loadStatus {
-    margin-top: 20px; color: var(--text-dim); font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
-  }
-
-  /* ---------- Error Overlay ---------- */
-  #errorBox {
-    position: fixed; inset: 0; z-index: 10000; display: none; align-items: center; justify-content: center;
-    background: #030712; padding: 24px;
-  }
-  #errorBox .box {
-    max-width: 600px; background: #0f172a; border: 1px solid var(--danger); border-radius: 12px;
-    padding: 24px 28px; font-family: var(--mono);
-  }
-  #errorBox h2 { color: var(--danger); margin: 0 0 10px; font-size: 18px; }
-  #errMsg { color: var(--text-dim); font-size: 12px; white-space: pre-wrap; line-height: 1.5; }
-
-  /* ---------- HUD Containers ---------- */
-  .hud { position: absolute; z-index: 10; pointer-events: none; }
-  .hud * { pointer-events: auto; }
-  #labelLayer { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
-
-  /* Mobile-only controls (revelados por media query) */
-  #mobLeftBtn, #mobInfoBtn, #rightClose, #scrim { display: none; }
-
-  /* ---------- Top Bar ---------- */
-  #topbar {
-    top: 0; left: 0; right: 0; height: 54px;
-    display: flex; align-items: center; gap: 16px; padding: 0 18px;
-    background: linear-gradient(180deg, rgba(6, 11, 25, 0.94) 0%, rgba(6, 11, 25, 0.6) 100%);
-    border-bottom: 1px solid var(--border);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  }
-  #brand { display: flex; align-items: baseline; gap: 8px; }
-  #brand .logo {
-    font-weight: 800; letter-spacing: 0.3em; font-size: 17px;
-    background: linear-gradient(90deg, #38bdf8, #a78bfa);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  #brand .ver { color: var(--text-muted); font-size: 10px; letter-spacing: 0.15em; font-family: var(--mono); }
-  #clock { display: flex; flex-direction: column; justify-content: center; margin-left: 12px; border-left: 1px solid var(--border); padding-left: 14px; }
-  #clock .date { font-family: var(--mono); font-size: 14px; font-weight: 600; letter-spacing: 0.05em; color: #f8fafc; }
-  #clock .jd { font-family: var(--mono); font-size: 10px; color: var(--text-dim); letter-spacing: 0.08em; }
-  #clock .jd span { color: var(--accent); }
-  .spacer { flex: 1; }
-  #topRight { display: flex; align-items: center; gap: 10px; }
-  .pill {
-    display: flex; align-items: center; gap: 6px;
-    background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border);
-    border-radius: 20px; padding: 4px 10px; font-family: var(--mono); font-size: 11px;
-  }
-  .pill .k { color: var(--text-muted); font-size: 10px; }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); }
-  .dot.warn { background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); }
-  #speedPill .v { color: var(--accent-2); font-weight: 600; }
-  #fpsPill .v { color: var(--good); font-weight: 600; }
-
-  /* ---------- Scale Switcher ---------- */
-  #scaleInd {
-    position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
-    z-index: 11; pointer-events: none;
-  }
-  #scaleInd .chip {
-    pointer-events: auto; display: inline-flex; gap: 3px;
-    background: rgba(6, 11, 25, 0.85); border: 1px solid var(--border);
-    border-radius: 20px; padding: 3px; backdrop-filter: blur(8px);
-  }
-  #scaleInd button {
-    background: none; border: none; color: var(--text-dim); font-family: var(--mono);
-    font-size: 10.5px; letter-spacing: 0.08em; padding: 5px 12px; border-radius: 16px;
-    cursor: pointer; text-transform: uppercase; transition: all 0.2s;
-  }
-  #scaleInd button:hover { color: #fff; }
-  #scaleInd button.active {
-    background: linear-gradient(90deg, #38bdf8, #818cf8);
-    color: #030712; font-weight: 700; box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
-  }
-
-  /* ---------- Scientific Mode Indicator ---------- */
-  .sci-badge {
-    position: absolute; top: 66px; right: 18px; z-index: 11;
-    background: rgba(56, 189, 248, 0.12); border: 1px solid var(--accent);
-    color: var(--accent); font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
-    padding: 5px 10px; border-radius: 6px; display: none; backdrop-filter: blur(6px);
-  }
-  .sci-badge.on { display: block; }
-
-  /* ---------- Left Panel (Object Browser & Scenarios) ---------- */
-  /* ---------- Left Panel (Object Browser & Scenarios) ---------- */
-  #left {
-    top: 54px; left: 0; bottom: 100px; width: 270px; z-index: 11;
-    background: var(--panel-bg); border-right: 1px solid var(--border);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    display: flex; flex-direction: column; transform: translateX(0); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  #left.collapsed { transform: translateX(-270px); }
-  .panel-tabs {
-    display: flex; background: rgba(3, 7, 18, 0.65); border-bottom: 1px solid var(--border);
-  }
-  .tab-btn {
-    flex: 1; background: none; border: none; color: var(--text-dim);
-    font-family: var(--mono); font-size: 10px; padding: 10px 4px; cursor: pointer;
-    border-bottom: 2px solid transparent; transition: all 0.15s; text-align: center;
-    display: inline-flex; align-items: center; justify-content: center; gap: 3px;
-  }
-  .tab-btn:hover { color: #fff; background: rgba(56, 189, 248, 0.08); }
-  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; background: rgba(56, 189, 248, 0.12); }
-  
-  #leftBody {
-    flex: 1; overflow-y: auto; overflow-x: hidden;
-  }
-  .tab-pane { display: none; }
-  .tab-pane.active { display: block; }
-
-  .panel-head {
-    padding: 10px 14px; font-size: 10px; letter-spacing: 0.18em; color: var(--text-dim);
-    text-transform: uppercase; border-bottom: 1px solid var(--border);
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .panel-head b { color: var(--accent); font-weight: 700; font-family: var(--mono); }
-  #objList { padding: 6px; }
-  .obj-group {
-    font-size: 9.5px; letter-spacing: 0.16em; color: var(--accent-3);
-    padding: 8px 8px 3px; text-transform: uppercase; font-weight: 600;
-  }
-  .obj-row {
-    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
-    border-radius: 6px; cursor: pointer; transition: all 0.15s;
-    border: 1px solid transparent; margin-bottom: 2px;
-  }
-  .obj-row:hover { background: rgba(56, 189, 248, 0.1); border-color: rgba(56, 189, 248, 0.2); }
-  .obj-row.selected { background: rgba(56, 189, 248, 0.18); border-color: var(--accent); }
-  .obj-row .sw { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 6px rgba(255, 255, 255, 0.2); }
-  .obj-row .nm { font-size: 12px; font-weight: 500; }
-  .obj-row .ty { margin-left: auto; font-size: 9px; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
-
-  #collapseBtn {
-    position: absolute; top: 10px; right: -13px; width: 26px; height: 26px;
-    border: 1px solid var(--border); border-radius: 50%;
-    background: var(--panel-solid); color: var(--text); cursor: pointer;
-    display: flex; align-items: center; justify-content: center; font-size: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); z-index: 12;
-  }
-
-  /* ---------- Right Panel (Object Information) ---------- */
-  #right {
-    top: 54px; right: 0; bottom: 100px; width: var(--right-w, 330px); z-index: 11;
-    background: var(--panel-bg); border-left: 1px solid var(--border);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    overflow-y: auto; padding: 14px 16px; transform: translateX(0); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), width 0.45s cubic-bezier(0.16, 1, 0.3, 1), background 0.4s ease;
-  }
-  #right.collapsed { transform: translateX(var(--right-w, 330px)); }
-  #infoBody .empty { color: var(--text-muted); font-size: 12px; line-height: 1.6; text-align: center; padding-top: 40px; }
-  #infoBody .empty .big { font-size: 36px; color: rgba(56, 189, 248, 0.2); margin-bottom: 8px; }
-  .info-title { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
-  .info-title .sw { width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 12px rgba(56, 189, 248, 0.4); flex-shrink: 0; }
-  .info-title h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: 0.03em; }
-  .info-title .ty { font-size: 10px; color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; }
-  .info-sub { color: var(--text-dim); font-size: 11px; margin-bottom: 12px; font-family: var(--mono); }
-  .info-actions { display: flex; gap: 6px; margin: 10px 0; flex-wrap: wrap; }
-  .unit-toggle { display: flex; background: rgba(0, 0, 0, 0.35); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
-  .unit-toggle button {
-    background: none; border: none; color: var(--text-dim); font-family: var(--mono);
-    font-size: 10px; padding: 4px 10px; cursor: pointer; transition: background 0.15s;
-  }
-  .unit-toggle button.active { background: var(--accent); color: #030712; font-weight: 700; }
-  .section-label {
-    font-size: 9.5px; letter-spacing: 0.18em; color: var(--accent);
-    text-transform: uppercase; margin: 14px 0 6px; font-weight: 700;
-    border-bottom: 1px solid rgba(56, 189, 248, 0.15); padding-bottom: 3px;
-  }
-  .stat { display: flex; justify-content: space-between; align-items: center; padding: 3.5px 0; font-family: var(--mono); font-size: 11px; }
-  .stat .k { color: var(--text-dim); }
-  .stat .v { color: #f1f5f9; font-weight: 500; text-align: right; }
-
-  /* ---------- Bottom Panel (Timeline & Controls) ---------- */
-  #bottom {
-    bottom: 0; left: 0; right: 0; height: 96px; z-index: 11;
-    background: linear-gradient(0deg, rgba(6, 11, 25, 0.96) 0%, rgba(6, 11, 25, 0.75) 100%);
-    border-top: 1px solid var(--border);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    display: flex; flex-direction: column; justify-content: center; padding: 6px 18px 10px; gap: 6px;
-  }
-  .bottom-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; overflow-x: auto; }
-  .ctrl-group { display: flex; align-items: center; gap: 4px; background: rgba(15, 23, 42, 0.6); padding: 3px 6px; border-radius: 8px; border: 1px solid var(--border); }
-  .btn {
-    background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border);
-    color: var(--text); border-radius: 6px; padding: 5px 10px;
-    font-family: var(--mono); font-size: 11px; cursor: pointer;
-    transition: all 0.15s; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center;
-  }
-  .btn:hover { background: rgba(56, 189, 248, 0.15); border-color: var(--accent); color: #fff; }
-  .btn.active { background: var(--accent); border-color: var(--accent); color: #030712; font-weight: 700; }
-  .btn-primary {
-    background: linear-gradient(90deg, #0284c7, #6366f1);
-    border-color: #38bdf8; color: #fff; font-weight: 600;
-  }
-  .btn-primary:hover { background: linear-gradient(90deg, #38bdf8, #818cf8); }
-  .btn.pause { width: 34px; height: 28px; font-weight: bold; }
-  .btn.pause.play { background: rgba(52, 211, 153, 0.2); border-color: var(--good); color: var(--good); }
-
-  #timeSlider {
-    flex: 1; min-width: 120px; height: 6px;
-    accent-color: var(--accent); cursor: pointer;
-  }
-
-  /* ---------- Date Setter Toolbar & Inputs ---------- */
-  .date-inputs { display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono); font-size: 11px; }
-  .date-inputs input {
-    width: 44px; background: rgba(3, 7, 18, 0.7); border: 1px solid var(--border);
-    color: #fff; border-radius: 4px; padding: 4px 5px; font-family: var(--mono); font-size: 11px; text-align: center;
-  }
-  .date-inputs input.yr { width: 56px; }
-
-  /* ---------- Asteroid FAB ---------- */
-  #asteroidFab {
-    position: absolute; bottom: 108px; right: 345px; z-index: 12;
-    transition: right 0.3s;
-  }
-  #asteroidFab .btn {
-    box-shadow: 0 4px 18px rgba(56, 189, 248, 0.35); padding: 8px 16px; font-size: 12px; font-weight: 700;
-  }
-
-  /* ---------- Modals & Overlays ---------- */
-  #modalBg {
-    position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center;
-    background: rgba(3, 7, 18, 0.75); backdrop-filter: blur(8px);
-  }
-  #modalBg.open { display: flex; }
-  .modal {
-    width: 620px; max-width: 92vw; max-height: 88vh; overflow-y: auto;
-    background: #0b1329; border: 1px solid var(--border); border-radius: 14px;
-    padding: 24px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
-  }
-  .modal h2 { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
-  .modal .desc { color: var(--text-dim); font-size: 12px; margin-bottom: 16px; line-height: 1.5; }
-  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
-  .field { display: flex; flex-direction: column; gap: 4px; }
-  .field.full { grid-column: 1 / -1; }
-  .field label { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
-  .field input, .field select {
-    background: #060d1f; border: 1px solid var(--border); color: #fff;
-    border-radius: 6px; padding: 7px 10px; font-family: var(--mono); font-size: 12px;
-  }
-  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
-  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid rgba(56, 189, 248, 0.15); padding-top: 16px; }
-  .modal .err { color: var(--danger); font-size: 11px; font-family: var(--mono); margin-top: 8px; }
-
-  /* ---------- Known NEO Cards & Uncertainty Badges ---------- */
-  .neo-card {
-    background: rgba(15, 23, 42, 0.65); border: 1px solid var(--border); border-radius: 8px;
-    padding: 8px 10px; margin-bottom: 8px; transition: all 0.2s ease;
-  }
-  .neo-card:hover { border-color: var(--accent); background: rgba(15, 23, 42, 0.9); box-shadow: 0 4px 14px rgba(56, 189, 248, 0.15); }
-  .neo-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; gap: 6px; }
-  .neo-title { font-size: 11px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 5px; }
-  .neo-tag { font-size: 8.5px; font-family: var(--mono); padding: 1.5px 5px; border-radius: 3px; background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); white-space: nowrap; }
-  .neo-tag.hazard { background: rgba(248, 113, 113, 0.18); color: #fca5a5; border-color: rgba(248, 113, 113, 0.4); font-weight: 700; }
-  .neo-details { font-family: var(--mono); font-size: 9.5px; color: var(--text-dim); line-height: 1.55; margin: 4px 0 6px; }
-  .neo-details b { color: #f1f5f9; }
-  .neo-corridor { font-size: 9px; color: #38bdf8; background: rgba(56, 189, 248, 0.08); padding: 2px 5px; border-radius: 4px; border-left: 2px solid var(--accent); margin: 3px 0; }
-  .neo-actions { display: flex; gap: 5px; margin-top: 6px; }
-  .neo-actions .btn { flex: 1; padding: 4px 6px; font-size: 9px; }
-  .neo-actions .btn-impact { border-color: rgba(248, 113, 113, 0.5); color: #fca5a5; font-weight: 700; }
-  .neo-actions .btn-impact:hover { background: rgba(248, 113, 113, 0.25); color: #fff; border-color: var(--danger); }
-
-  .preset-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 14px; }
-  .preset-bar .btn { font-size: 10px; padding: 4px 8px; }
-
-  /* ---------- Impact Event HUD & Timeline ---------- */
-  #impactHud {
-    position: fixed; inset: 0; pointer-events: none; z-index: 50; display: none;
-  }
-  #impactHud.on { display: block; }
-  #impactFlash {
-    position: absolute; inset: 0; background: radial-gradient(circle, rgba(255, 245, 200, 0.95) 0%, rgba(255, 120, 40, 0.6) 40%, rgba(0, 0, 0, 0) 80%);
-    opacity: 0; pointer-events: none;
-  }
-  #impactHud .banner {
-    position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
-    background: rgba(15, 23, 42, 0.88); border: 1px solid var(--danger);
-    border-radius: 12px; padding: 12px 24px; text-align: center;
-    box-shadow: 0 0 30px rgba(248, 113, 113, 0.4); backdrop-filter: blur(10px);
-  }
-  #impactHud .banner .tt { font-size: 16px; font-weight: 700; color: var(--danger); letter-spacing: 0.1em; }
-  #impactHud .banner .num { font-family: var(--mono); font-size: 13px; color: #fff; margin-top: 4px; }
-
-  #eventTimeline {
-    position: absolute; bottom: 106px; left: 260px; right: 350px; height: 58px;
-    background: var(--panel-bg); border: 1px solid var(--border); border-radius: 10px;
-    padding: 8px 14px; backdrop-filter: blur(10px); display: none; flex-direction: column; justify-content: space-between;
-    z-index: 12;
-  }
-  #eventTimeline.on { display: flex; }
-  #eventTimeline h4 { margin: 0; font-size: 10px; letter-spacing: 0.15em; color: var(--accent); text-transform: uppercase; font-family: var(--mono); }
-  .tl-track { position: relative; width: 100%; height: 10px; background: rgba(255, 255, 255, 0.08); border-radius: 5px; cursor: pointer; }
-  .tl-bar { position: absolute; inset: 0; border-radius: 5px; }
-  .tl-progress { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, #38bdf8, #f87171); border-radius: 5px; }
-  .tl-now { position: absolute; top: -3px; width: 6px; height: 16px; background: #fff; border-radius: 3px; transform: translateX(-50%); box-shadow: 0 0 8px #fff; }
-  .tl-mark { position: absolute; top: -14px; font-size: 8.5px; font-family: var(--mono); color: var(--text-dim); transform: translateX(-50%); }
-  .tl-mark.imp { color: var(--danger); font-weight: 700; }
-  .tl-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 2px; }
-  .tl-controls .btn { padding: 2px 8px; font-size: 9.5px; }
-
-  /* ---------- Event List Float Panel ---------- */
-  #eventPanel {
-    position: absolute; top: 100px; left: 260px; width: 280px; max-height: 220px;
-    background: var(--panel-bg); border: 1px solid var(--border); border-radius: 10px;
-    padding: 8px 10px; backdrop-filter: blur(10px); display: none; flex-direction: column;
-    z-index: 12; overflow-y: auto;
-  }
-  #eventPanel.on { display: flex; }
-  #eventPanel .eh { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--accent); letter-spacing: 0.12em; font-weight: 700; margin-bottom: 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; font-family: var(--mono); }
-  #eventPanel .er { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 5px; background: rgba(255, 255, 255, 0.03); margin-bottom: 4px; }
-  #eventPanel .er .dc { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  #eventPanel .er .em { flex: 1; cursor: pointer; font-size: 11px; }
-  #eventPanel .er .em b { color: #fff; }
-  #eventPanel .er .em small { display: block; color: var(--text-dim); font-family: var(--mono); font-size: 9px; }
-  #eventPanel .er button { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; padding: 2px 6px; font-size: 9.5px; cursor: pointer; }
-  #eventPanel .er button:hover { border-color: var(--accent); color: #fff; }
-  #eventPanel .er .rm { color: var(--danger) !important; }
-
-  /* ---------- 3D Labels in Screen Space ---------- */
-  .label3d {
-    position: absolute; transform: translate(-50%, -100%); pointer-events: none;
-    font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: rgba(220, 235, 255, 0.85);
-    background: rgba(3, 7, 18, 0.6); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.2);
-    white-space: nowrap; transition: opacity 0.15s; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-  }
-  .label3d.target { border-color: var(--accent); color: #fff; font-weight: 700; box-shadow: 0 0 8px rgba(56, 189, 248, 0.4); }
-  .label3d.sun { color: #fde047; border-color: rgba(253, 224, 71, 0.3); }
-
-  /* ---------- Keyboard Shortcuts Overlay ---------- */
-  #shortcuts {
-    position: absolute; bottom: 106px; left: 16px; z-index: 10;
-    display: flex; flex-direction: column; gap: 3px; font-family: var(--mono); font-size: 9.5px; color: var(--text-muted);
-    background: rgba(6, 11, 25, 0.6); padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.12);
-  }
-  #shortcuts span.k { color: var(--accent); font-weight: 700; margin-right: 4px; }
-
-  /* ---------- Toast Notification ---------- */
-  #toast {
-    position: fixed; top: 68px; left: 50%; transform: translateX(-50%) translateY(-20px);
-    background: rgba(15, 23, 42, 0.92); border: 1px solid var(--accent); color: #fff;
-    font-family: var(--mono); font-size: 11px; padding: 6px 16px; border-radius: 20px;
-    opacity: 0; pointer-events: none; z-index: 10000; transition: all 0.25s ease;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-  }
-  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.25); border-radius: 3px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-
-  /* ========================================================================
-     THE ORBITAL GAZETTE — National Geographic Magazine Edition
-     ======================================================================== */
-  :root {
-    --serif: "Playfair Display", Georgia, "Times New Roman", serif;
-    --serif-body: "Source Serif 4", Georgia, "Times New Roman", serif;
-    --paper: #f4eede;
-    --ink: #1b1710;
-    --ink-soft: #57503f;
-    --mag-red: #c8102e;
-    --mag-gold: #f2b705;
-  }
-
-  /* ---------- Magazine Paper Panel ---------- */
-  #right.magazine {
-    --right-w: 402px;
-    width: 402px;
-    padding: 0 0 8px;
-    background: linear-gradient(160deg, #f7f1e1 0%, #f0e7d1 55%, #e9dcbf 100%);
-    color: var(--ink);
-    border-left: 1px solid rgba(242, 183, 5, 0.65);
-    box-shadow: -22px 0 54px rgba(0, 0, 0, 0.55);
-    backdrop-filter: none; -webkit-backdrop-filter: none;
-  }
-  #right.magazine > .panel-head { display: none; }
-  #right.magazine::-webkit-scrollbar-thumb { background: rgba(27, 23, 16, 0.28); }
-
-  .mag-reveal { opacity: 0; transform: translateY(16px); animation: magUp 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-  @keyframes magUp { to { opacity: 1; transform: none; } }
-
-  /* ---------- Masthead ---------- */
-  .mag-mast {
-    padding: 15px 22px 12px; border-bottom: 2px solid var(--ink);
-    background: rgba(255, 255, 255, 0.22);
-  }
-  .mag-mast .row1, .mag-mast .row2 {
-    display: flex; justify-content: space-between; align-items: center;
-    font: 700 8.5px var(--mono); letter-spacing: 0.2em; color: var(--ink-soft);
-  }
-  .mag-mast .row1 { margin-bottom: 8px; }
-  .mag-mast .row2 { margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(27, 23, 16, 0.35); }
-  .mag-mast .word {
-    text-align: center; font-family: var(--serif); font-weight: 900;
-    font-size: 26px; letter-spacing: 0.05em; line-height: 1; color: var(--ink);
-  }
-  .mag-mast .word em { font-style: normal; color: var(--mag-red); }
-
-  /* ---------- Hero Photograph ---------- */
-  .mag-hero { margin: 16px 18px 0; }
-  .mag-hero .frame {
-    position: relative; overflow: hidden; aspect-ratio: 4 / 3; background: #04060c;
-    border: 6px solid var(--mag-gold); box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
-  }
-  .mag-hero .frame::after {
-    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.12; mix-blend-mode: overlay;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='0.55'/></svg>");
-  }
-  .mag-hero img {
-    width: 100%; height: 100%; object-fit: cover; display: block;
-    opacity: 0; transform: scale(1.14);
-  }
-  .mag-hero img.ready { opacity: 1; animation: kenBurns 22s ease-out forwards; }
-  @keyframes kenBurns { from { transform: scale(1.14) translate(-1.2%, 0.8%); } to { transform: scale(1.02) translate(0, 0); } }
-  .mag-hero .dev {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(120deg, #070b16, #18223c, #070b16); background-size: 220% 100%;
-    animation: devShimmer 1.7s linear infinite;
-    color: rgba(233, 238, 255, 0.6); font: 500 9.5px var(--mono); letter-spacing: 0.32em;
-  }
-  @keyframes devShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
-  .mag-hero .frame.dev-done .dev, .mag-hero .frame.dev-fail .dev { display: none; }
-  .mag-cap {
-    margin: 8px 2px 0; font: italic 500 10.5px/1.5 var(--serif-body); color: var(--ink-soft);
-  }
-  .mag-cap b { font-style: normal; font-weight: 700; letter-spacing: 0.06em; }
-  .mag-cap i { opacity: 0.75; }
-
-  /* ---------- Headline Block ---------- */
-  .mag-kicker {
-    display: flex; align-items: center; gap: 10px; margin: 18px 22px 6px;
-    font: 700 10px var(--sans); letter-spacing: 0.24em; text-transform: uppercase; color: var(--mag-red);
-  }
-  .mag-kicker::before { content: ""; width: 28px; height: 2px; background: var(--mag-red); flex-shrink: 0; }
-  .mag-title {
-    margin: 0 22px; font-family: var(--serif); font-weight: 900; font-size: 52px;
-    line-height: 0.95; letter-spacing: -0.01em; color: var(--ink);
-  }
-  .mag-deck { margin: 11px 22px 0; font: 400 14.5px/1.52 var(--serif-body); color: #352e20; }
-  .mag-byline {
-    margin: 12px 22px 0; font: 600 8.5px var(--mono); letter-spacing: 0.18em;
-    text-transform: uppercase; color: var(--ink-soft);
-  }
-  .mag-rule { margin: 12px 22px 0; border-top: 1px solid rgba(27, 23, 16, 0.4); }
-
-  /* ---------- Article Body (two columns) ---------- */
-  .mag-body {
-    margin: 14px 22px 0; column-count: 2; column-gap: 16px;
-    column-rule: 1px solid rgba(27, 23, 16, 0.16);
-    font: 400 12.5px/1.62 var(--serif-body); color: #2b2519; text-align: justify; hyphens: auto;
-  }
-  .mag-body p { margin: 0 0 9px; break-inside: avoid-column; }
-  .mag-body p:first-of-type::first-letter {
-    font-family: var(--serif); font-weight: 900; font-size: 42px; line-height: 0.8;
-    float: left; padding: 4px 7px 0 0; color: var(--mag-red);
-  }
-
-  /* ---------- Section Headings ---------- */
-  .mag-h {
-    display: flex; align-items: center; gap: 10px; margin: 0 0 9px;
-    font: 700 10px var(--sans); letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink);
-  }
-  .mag-h::after { content: ""; flex: 1; height: 1px; background: rgba(27, 23, 16, 0.35); }
-
-  /* ---------- By the Numbers ---------- */
-  .mag-numbers { margin: 18px 22px 0; }
-  .ngrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .ncall {
-    background: rgba(255, 255, 255, 0.45); border: 1px solid rgba(27, 23, 16, 0.16);
-    border-top: 3px solid var(--mag-gold); padding: 9px 10px 8px;
-  }
-  .ncall .v { font-family: var(--serif); font-weight: 700; font-size: 18.5px; line-height: 1.12; color: var(--ink); }
-  .ncall .k { margin-top: 4px; font: 600 8px var(--sans); letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-soft); }
-
-  /* ---------- Detailed Telemetry ---------- */
-  .mag-detail { margin: 18px 22px 0; }
-  .mag-detail .unit-toggle { margin-bottom: 10px; background: rgba(27, 23, 16, 0.07); border-color: rgba(27, 23, 16, 0.35); }
-  .mag-detail .unit-toggle button { color: var(--ink-soft); }
-  .mag-detail .unit-toggle button.active { background: var(--ink); color: var(--paper); }
-  .mag-detail .stat { border-bottom: 1px dotted rgba(27, 23, 16, 0.25); padding: 4.5px 0; }
-  .mag-detail .stat .k { color: var(--ink-soft); font-family: var(--sans); font-weight: 600; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
-  .mag-detail .stat .v { color: var(--ink); font-weight: 600; }
-
-  /* ---------- Field Note (pull quote) ---------- */
-  .mag-note {
-    margin: 18px 22px 0; border-left: 4px solid var(--mag-red);
-    background: rgba(200, 16, 46, 0.055); padding: 11px 13px;
-  }
-  .mag-note .lbl {
-    display: block; margin-bottom: 4px; font: 700 8.5px var(--sans);
-    letter-spacing: 0.22em; text-transform: uppercase; color: var(--mag-red);
-  }
-  .mag-note p { margin: 0; font: italic 600 13px/1.55 var(--serif-body); color: #332c1f; }
-
-  /* ---------- Footer ---------- */
-  .mag-foot { margin: 18px 22px 12px; }
-  .mag-cta {
-    width: 100%; padding: 11px 14px; border: none; border-radius: 2px; cursor: pointer;
-    background: var(--ink); color: var(--paper);
-    font: 700 11px var(--sans); letter-spacing: 0.22em; text-transform: uppercase;
-    transition: all 0.22s ease;
-  }
-  .mag-cta:hover { background: var(--mag-red); box-shadow: 0 8px 18px rgba(200, 16, 46, 0.4); transform: translateY(-1px); }
-  .mag-fine { margin-top: 10px; font: 400 8.5px/1.55 var(--sans); color: rgba(87, 80, 63, 0.8); }
-
-  /* ========================================================================
-     MAGAZINE COVER SPLASH — cinematic selection overlay
-     ======================================================================== */
-  #magCover { position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: 0; transition: opacity 0.5s ease; }
-  #magCover.on { opacity: 1; }
-  #magCover .cine { position: absolute; left: 0; right: 0; height: 7.5vh; background: #000; transition: transform 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.05s; }
-  #magCover .cine.t { top: 0; transform: translateY(-101%); }
-  #magCover .cine.b { bottom: 0; transform: translateY(101%); }
-  #magCover.on .cine { transform: none; }
-  #magCover .vig {
-    position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 36% 46%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.28) 52%, rgba(0, 0, 0, 0.86) 100%);
-  }
-  #magCover .mc-inner { position: absolute; left: 6vw; top: 50%; transform: translateY(-50%); max-width: 620px; }
-  #magCover .mc-kicker {
-    font: 700 12px var(--sans); letter-spacing: 0.36em; text-transform: uppercase; color: var(--mag-gold);
-    margin-bottom: 16px; opacity: 0;
-  }
-  #magCover .mc-kicker::before { content: ""; display: block; width: 48px; height: 3px; background: var(--mag-gold); margin-bottom: 14px; }
-  #magCover .mc-title {
-    margin: 0; font-family: var(--serif); font-weight: 900; font-size: clamp(72px, 10.5vw, 148px);
-    line-height: 0.9; letter-spacing: -0.015em; color: #fdfaf1; text-shadow: 0 14px 50px rgba(0, 0, 0, 0.7);
-    opacity: 0;
-  }
-  #magCover .mc-deck {
-    margin: 18px 0 0; max-width: 480px; font: italic 400 17px/1.55 var(--serif-body);
-    color: rgba(247, 241, 225, 0.94); text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85); opacity: 0;
-  }
-  #magCover .mc-meta {
-    margin-top: 24px; display: flex; align-items: center; gap: 12px;
-    font: 600 10px var(--mono); letter-spacing: 0.24em; text-transform: uppercase; color: rgba(247, 241, 225, 0.75); opacity: 0;
-  }
-  #magCover .mc-meta::before { content: ""; width: 36px; height: 1px; background: var(--mag-gold); flex-shrink: 0; }
-  #magCover .mc-lines {
-    position: absolute; right: calc(6vw + 402px); top: 50%; transform: translateY(-50%);
-    width: 290px; display: flex; flex-direction: column; gap: 26px;
-  }
-  #magCover .mc-line {
-    font: 400 13px/1.55 var(--serif-body); color: rgba(253, 250, 242, 0.92);
-    border-top: 1px solid rgba(255, 255, 255, 0.38); padding-top: 10px; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8);
-    opacity: 0;
-  }
-  #magCover .mc-line b {
-    display: block; margin-bottom: 5px; font: 700 9px var(--sans);
-    letter-spacing: 0.24em; text-transform: uppercase; color: var(--mag-gold);
-  }
-  #magCover.on .mc-kicker { animation: mcFade 1s 0.25s both; }
-  #magCover.on .mc-title { animation: mcTitle 1.3s 0.4s both; }
-  #magCover.on .mc-deck { animation: mcFade 1s 0.85s both; }
-  #magCover.on .mc-meta { animation: mcFade 1s 1.05s both; }
-  #magCover.on .mc-line { animation: mcFade 0.9s both; }
-  #magCover.on .mc-line:nth-child(1) { animation-delay: 1.1s; }
-  #magCover.on .mc-line:nth-child(2) { animation-delay: 1.3s; }
-  #magCover.on .mc-line:nth-child(3) { animation-delay: 1.5s; }
-  @keyframes mcFade { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-  @keyframes mcTitle { from { opacity: 0; transform: translateY(36px); filter: blur(12px); } to { opacity: 1; transform: none; filter: blur(0); } }
-
-  /* ========================================================================
-     SMARTPHONE / COARSE-POINTER LAYOUT
-     Paneles laterales → drawers; panel derecho → bottom sheet;
-     dock inferior scrolleable con objetivos táctiles ≥ 32px; safe-areas.
-     ======================================================================== */
-  @media (max-width: 930px), (pointer: coarse) {
-    /* ---------- Top bar compacta ---------- */
-    #topbar {
-      height: auto; min-height: 46px; gap: 8px;
-      padding: calc(6px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 6px calc(10px + env(safe-area-inset-left));
-    }
-    #brand .ver { display: none; }
-    #brand .logo { font-size: 15px; }
-    #clock { margin-left: 6px; padding-left: 8px; }
-    #clock .date { font-size: 11.5px; }
-    #clock .jd { display: none; }
-    #topbar > .ctrl-group { display: none; }           /* presets de fecha → fuera */
-    #fpsPill, #statusPill { display: none; }
-    #speedPill { padding: 3px 8px; font-size: 10px; }
-
-    #mobLeftBtn, #mobInfoBtn {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 34px; height: 31px; flex: 0 0 auto;
-      border: 1px solid var(--border); border-radius: 8px;
-      background: rgba(15, 23, 42, 0.7); color: var(--text);
-      font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent;
-    }
-    #mobLeftBtn:active, #mobInfoBtn:active { background: rgba(56, 189, 248, 0.25); }
-    #mobInfoBtn { font-size: 15px; font-weight: 700; }
-
-    /* ---------- Scrim ---------- */
-    #scrim {
-      position: fixed; inset: 0; z-index: 25; display: none;
-      background: rgba(3, 7, 18, 0.6);
-      backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
-    }
-    #scrim.on { display: block; }
-
-    /* ---------- Left panel → drawer ---------- */
-    #left {
-      top: 0; left: 0; bottom: 0; height: auto; width: min(330px, 88vw); z-index: 30;
-      padding-top: env(safe-area-inset-top);
-      background: var(--panel-solid);
-      transform: translateX(-102%);
-      box-shadow: 18px 0 48px rgba(0, 0, 0, 0.65);
-    }
-    #left.open { transform: translateX(0); }
-    #left.collapsed { transform: translateX(-102%); }
-    #collapseBtn { display: none; }
-    .panel-tabs .tab-btn { padding: 13px 6px; font-size: 11px; }
-    .obj-row { padding: 10px 10px; }
-    .obj-row .nm { font-size: 13px; }
-    .neo-actions .btn { padding: 7px 9px; font-size: 10px; }
-
-    /* ---------- Right panel → bottom sheet ---------- */
-    #right {
-      top: auto; left: 0; right: 0; bottom: 0; width: 100%; z-index: 30;
-      height: 68vh; height: 68dvh;
-      transform: translateY(102%);
-      border-left: none; border-top: 1px solid var(--border-highlight);
-      border-radius: 16px 16px 0 0;
-      box-shadow: 0 -16px 50px rgba(0, 0, 0, 0.7);
-      background: var(--panel-solid);
-      padding: 22px 16px calc(14px + env(safe-area-inset-bottom));
-    }
-    #right.open { transform: translateY(0); }
-    #right.collapsed { transform: translateY(102%); }
-    #right::before {   /* asa visual del sheet */
-      content: ""; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
-      width: 42px; height: 4px; border-radius: 2px; background: rgba(148, 163, 184, 0.5);
-    }
-    #rightClose {
-      display: flex; align-items: center; justify-content: center;
-      position: absolute; top: 12px; right: 12px; z-index: 3;
-      width: 32px; height: 32px; border-radius: 50%;
-      border: 1px solid var(--border); background: rgba(15, 23, 42, 0.9);
-      color: #fff; font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent;
-    }
-    #right .panel-head { margin: -6px -16px 10px; padding: 8px 16px; }
-
-    /* ---------- Dock inferior scrolleable ---------- */
-    #bottom {
-      height: auto; gap: 7px;
-      padding: 8px calc(10px + env(safe-area-inset-right)) calc(9px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
-    }
-    .bottom-row { scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-    .bottom-row::-webkit-scrollbar { display: none; }
-    #bottom .ctrl-group { flex: 0 0 auto; }
-    #bottom .btn { min-height: 33px; padding: 7px 11px; font-size: 11.5px; }
-    .btn.pause { width: 40px; height: 33px; }
-    .date-inputs input { padding: 7px 5px; font-size: 12px; }
-    #customRateGroup { display: none; }
-    #timeSlider { min-width: 160px; height: 30px; }
-
-    /* ---------- Escala, FAB, paneles flotantes ---------- */
-    #scaleInd { top: calc(54px + env(safe-area-inset-top)); }
-    #scaleInd button { padding: 5px 9px; font-size: 9.5px; }
-    .sci-badge { top: calc(94px + env(safe-area-inset-top)); right: 10px; font-size: 8.5px; padding: 4px 8px; }
-
-    #asteroidFab {
-      bottom: calc(116px + env(safe-area-inset-bottom));
-      right: calc(12px + env(safe-area-inset-right));
-    }
-    #asteroidFab .btn { padding: 11px 15px; font-size: 12px; }
-
-    #eventPanel {
-      top: calc(96px + env(safe-area-inset-top)); left: 10px; right: 10px; width: auto; max-height: 30vh;
-    }
-    #eventTimeline {
-      left: 10px; right: 10px; bottom: calc(172px + env(safe-area-inset-bottom)); height: auto;
-    }
-    #eventTimeline .tl-controls { justify-content: center; }
-    #eventTimeline .tl-controls .btn { padding: 6px 10px; font-size: 10.5px; }
-
-    #impactHud .banner { top: 58px; left: 10px; right: 10px; transform: none; padding: 10px 14px; }
-    #impactHud .banner .num { font-size: 11px; }
-
-    #shortcuts { display: none !important; }
-
-    #toast {
-      top: calc(54px + env(safe-area-inset-top)); left: 50%; right: auto;
-      width: max-content; max-width: 92vw; white-space: normal; text-align: center; font-size: 11.5px;
-    }
-
-    /* ---------- Modal a pantalla completa ---------- */
-    #modalBg { align-items: flex-end; padding: 0; }
-    #modalBg .modal {
-      width: 100%; max-width: 100%; max-height: 92vh; max-height: 92dvh;
-      border-radius: 16px 16px 0 0; border-bottom: none;
-      padding: 18px 16px calc(14px + env(safe-area-inset-bottom));
-    }
-    .modal h2 { font-size: 17px; }
-    .field input, .field select { font-size: 14px; padding: 9px 10px; }
-    .modal-actions .btn { min-height: 36px; padding: 8px 14px; }
-
-    /* ---------- Revista (panel derecho) en móvil ---------- */
-    #right.magazine { width: 100%; height: 78vh; height: 78dvh; }
-    #right.magazine::before { background: rgba(27, 23, 16, 0.4); }
-    #right.magazine #rightClose { background: rgba(27, 23, 16, 0.88); border-color: rgba(27, 23, 16, 0.45); }
-    #right.magazine .mag-mast { padding: 14px 16px 11px; }
-    #right.magazine .mag-title { font-size: 33px; margin: 0 16px; }
-    #right.magazine .mag-hero { margin: 14px 14px 0; }
-    #right.magazine .mag-kicker, #right.magazine .mag-deck,
-    #right.magazine .mag-byline, #right.magazine .mag-rule { margin-left: 16px; margin-right: 16px; }
-    #right.magazine .mag-body {
-      column-count: 1; margin: 12px 16px 0; font-size: 13.5px;
-    }
-    #right.magazine .mag-numbers, #right.magazine .mag-detail,
-    #right.magazine .mag-note { margin-left: 16px; margin-right: 16px; }
-    #right.magazine .mag-foot { margin: 18px 16px 12px; }
-    #right.magazine .mag-cta { min-height: 44px; }
-    #right.magazine .mag-detail .unit-toggle button { padding: 7px 12px; }
-
-    /* ---------- Portada cinematográfica ---------- */
-    #magCover .cine { height: 4.5vh; }
-    #magCover .mc-inner {
-      left: 16px; right: 16px; top: auto; bottom: max(12vh, 96px);
-      transform: none; max-width: none;
-    }
-    #magCover .mc-title { font-size: clamp(44px, 12vw, 72px); }
-    #magCover .mc-kicker { font-size: 10px; letter-spacing: 0.3em; margin-bottom: 10px; }
-    #magCover .mc-deck { font-size: 14px; margin-top: 12px; }
-    #magCover .mc-meta { margin-top: 14px; font-size: 9px; }
-    #magCover .mc-lines { display: none; }
-
-    /* ---------- Etiquetas 3D y carga ---------- */
-    .label3d { font-size: 9px; padding: 2px 5px; }
-    #loading h1 { font-size: 23px; letter-spacing: 0.35em; }
-    #loading .sub { font-size: 9px; letter-spacing: 0.18em; padding: 0 16px; text-align: center; }
-  }
-</style>
-</head>
-<body>
-<div id="app"></div>
-
-<!-- Loading Overlay -->
-<div id="loading">
-  <h1>ORBIT</h1>
-  <div class="sub">Interactive Solar System &amp; Impact Laboratory</div>
-  <div class="spinner"></div>
-  <div id="loadStatus">Generating Planetary Shaders &amp; Ephemerides…</div>
-</div>
-
-<!-- Error Box -->
-<div id="errorBox">
-  <div class="box">
-    <h2>⚠ Initialization Error</h2>
-    <div id="errMsg"></div>
-  </div>
-</div>
-
-<!-- Scrim para paneles/sheets móviles -->
-<div id="scrim"></div>
-
-<!-- Top Bar -->
-<div id="topbar" class="hud">
-  <button id="mobLeftBtn" title="Object Browser" aria-label="Open object browser">☰</button>
-  <div id="brand"><span class="logo">ORBIT</span><span class="ver">NASA-LAB 3D</span></div>
-  <div id="clock">
-    <span class="date" id="clockDate">—</span>
-    <span class="jd">JULIAN DATE <span id="clockJd">—</span></span>
-  </div>
-
-  <div class="spacer"></div>
-
-  <!-- Quick Date Presets -->
-  <div class="ctrl-group" style="margin-right:8px;">
-    <button class="btn" id="btnDatePreset2000" title="01/01/2000 J2000 Epoch">2000</button>
-    <button class="btn" id="btnDatePreset2026" title="20/08/2026 Eclipse Season">2026</button>
-    <button class="btn" id="btnDatePreset2030" title="01/01/2030 Decade Mark">2030</button>
-    <button class="btn" id="btnDateNow" title="Current Real Date">NOW</button>
-  </div>
-
-  <div id="topRight">
-    <div class="pill" id="fpsPill" title="Render Frames Per Second"><span class="k">FPS</span><span class="v" id="fpsVal">60</span></div>
-    <div class="pill" id="speedPill" title="Current Simulation Rate"><span class="k">SPEED</span><span class="v" id="speedPillVal">1×</span></div>
-    <div class="pill" title="System Status" id="statusPill"><span class="dot" id="statusDot"></span><span class="k" id="statusTxt">SIMULATION READY</span></div>
-    <button id="mobInfoBtn" title="Object Info" aria-label="Open object info">ⓘ</button>
-  </div>
-</div>
-
-<!-- Scale Switcher -->
-<div id="scaleInd" class="hud">
-  <div class="chip">
-    <button data-scale="scientific" title="1:1 Astronomical Proportions">Scientific</button>
-    <button data-scale="presentation" class="active" title="Balanced View for Planetary Science">Presentation</button>
-    <button data-scale="cinematic" title="Dramatic Close-Up Exaggeration">Cinematic</button>
-  </div>
-</div>
-
-<div class="sci-badge" id="sciBadge">◆ SCIENTIFIC MODE · VECTORS &amp; ORBITAL PLANES ACTIVE</div>
-
-<!-- Left Panel (Planets & NEOs & Scenarios) -->
-<div id="left" class="hud">
-  <button id="collapseBtn" title="Toggle Sidebar">‹</button>
-  <div class="panel-tabs" id="leftTabs">
-    <button class="tab-btn active" data-tab="planets">🪐 Planets</button>
-    <button class="tab-btn" data-tab="neos">☄️ NEOs</button>
-    <button class="tab-btn" data-tab="scenarios">🚀 Missions</button>
-  </div>
-  <div id="leftBody">
-    <div id="tabPlanets" class="tab-pane active">
-      <div class="panel-head"><span>Celestial Bodies</span><b id="objCount">0</b></div>
-      <div id="objList"></div>
-      <div id="qualitySection"></div>
-      <div id="exportSection"></div>
-    </div>
-    <div id="tabNeos" class="tab-pane">
-      <div class="panel-head"><span>Near-Earth Asteroids</span><b id="neoCount">4</b></div>
-      <div id="neoList"></div>
-    </div>
-    <div id="tabScenarios" class="tab-pane">
-      <div class="panel-head"><span>Mission Scenarios</span></div>
-      <div id="scenariosList"></div>
-    </div>
-  </div>
-</div>
-
-<!-- Right Panel (Object Information) -->
-<div id="right" class="hud">
-  <button id="rightClose" title="Close" aria-label="Close panel">✕</button>
-  <div class="panel-head"><span>Telemetry &amp; Orbital Data</span></div>
-  <div id="infoBody">
-    <div class="empty"><div class="big">◐</div>Select a celestial body to inspect its physical properties, Keplerian elements, and real-time heliocentric coordinates.</div>
-  </div>
-</div>
-
-<!-- Bottom Panel (Timeline & Controls & Date Setter) -->
-<div id="bottom" class="hud">
-  <!-- Row 1: Date/Time Inputs & Date Setter & Steppers -->
-  <div class="bottom-row">
-    <div class="ctrl-group">
-      <button class="btn pause play" id="btnPause" title="Play / Pause Simulation (Space)">❚❚</button>
-      <button class="btn" id="btnReverse" title="Toggle Forward / Backward Time Direction">⇄ REV</button>
-    </div>
-
-    <!-- Date Input Form -->
-    <div class="ctrl-group date-inputs">
-      <input type="number" id="inpYear" class="yr" title="Year" value="2026" min="1" max="9999" />
-      <span>-</span>
-      <input type="number" id="inpMonth" title="Month (1-12)" value="8" min="1" max="12" />
-      <span>-</span>
-      <input type="number" id="inpDay" title="Day (1-31)" value="20" min="1" max="31" />
-      <span style="margin-left:4px;"></span>
-      <input type="number" id="inpHour" title="Hour UTC (0-23)" value="12" min="0" max="23" />
-      <span>:</span>
-      <input type="number" id="inpMin" title="Minute (0-59)" value="0" min="0" max="59" />
-      <span>:</span>
-      <input type="number" id="inpSec" title="Second (0-59)" value="0" min="0" max="59" />
-      <button class="btn btn-primary" id="btnSetDate" style="margin-left:6px;" title="Calculate Planetary Positions for Given Date">Set Date</button>
-    </div>
-
-    <!-- Stepper Buttons -->
-    <div class="ctrl-group">
-      <button class="btn" id="btnY1" title="−1 Year">−1Y</button>
-      <button class="btn" id="btnM1" title="−1 Month">−1M</button>
-      <button class="btn" id="btnW1" title="−1 Week">−1W</button>
-      <button class="btn" id="btnD1" title="−1 Day">−1D</button>
-      <button class="btn" id="btnD1p" title="+1 Day">+1D</button>
-      <button class="btn" id="btnW1p" title="+1 Week">+1W</button>
-      <button class="btn" id="btnM1p" title="+1 Month">+1M</button>
-      <button class="btn" id="btnY1p" title="+1 Year">+1Y</button>
-    </div>
-
-    <!-- Visual Layer Toggles -->
-    <div class="ctrl-group">
-      <button class="btn active" id="btnToggleOrbits" title="Toggle Orbit Lines (T)">Orbits</button>
-      <button class="btn active" id="btnToggleLabels" title="Toggle Object Labels">Labels</button>
-      <button class="btn active" id="btnToggleBelt" title="Toggle Asteroid Belt">Belt</button>
-      <button class="btn" id="btnToggleSci" title="Toggle Scientific Mode (S)">Sci Mode</button>
-    </div>
-  </div>
-
-  <!-- Row 2: Speed Presets, Custom Multiplier, Scrubber -->
-  <div class="bottom-row">
-    <div class="ctrl-group" id="speedGroup">
-      <button class="btn speed" data-speed="0">PAUSE</button>
-      <button class="btn speed" data-speed="0.000011574074" title="True Real-Time (1 sec / sec)">1× (1s/s)</button>
-      <button class="btn speed" data-speed="0.0006944444" title="1 Minute per second">1 min/s</button>
-      <button class="btn speed active" data-speed="0.041666667" title="1 Hour per second (Smooth &amp; Graceful)">1 hr/s</button>
-      <button class="btn speed" data-speed="1" title="1 Day per second">1 day/s</button>
-      <button class="btn speed" data-speed="7" title="7 Days (1 Week) per second">7 d/s</button>
-      <button class="btn speed" data-speed="30" title="30 Days (1 Month) per second">30 d/s</button>
-      <button class="btn speed" data-speed="365.25" title="1 Year per second">1 yr/s</button>
-      <button class="btn speed" data-speed="3652.5" title="10 Years per second">10 yr/s</button>
-    </div>
-
-    <div class="ctrl-group" id="customRateGroup" style="font-family:var(--mono); font-size:11px; color:var(--text-dim);">
-      <span>Custom Rate:</span>
-      <input type="number" id="inpCustomSpeed" value="250000" min="1" max="100000000" style="width:75px; background:#060d1f; border:1px solid var(--border); color:#fff; padding:3px 6px; border-radius:4px; font-family:var(--mono); font-size:11px;" />
-      <button class="btn" id="btnApplyCustomSpeed">Apply</button>
-    </div>
-
-    <input type="range" id="timeSlider" min="-100000" max="100000" value="0" step="0.01" title="Time Scrub Slider (J2000 ± 270 Years)" />
-  </div>
-</div>
-
-<!-- Asteroid FAB -->
-<div id="asteroidFab">
-  <button class="btn btn-primary" id="asteroidBtn">☄ CREATE IMPACT EVENT</button>
-</div>
-
-<!-- Modal Dialog -->
-<div id="modalBg">
-  <div class="modal" id="modalContent"></div>
-</div>
-
-<!-- Impact HUD Banner & Flash -->
-<div id="impactHud">
-  <div id="impactFlash"></div>
-  <div class="banner">
-    <div class="tt" id="impactBanner">IMPACT EVENT DETECTED</div>
-    <div class="num" id="impactNum">Calculating Kinetic Dissipation…</div>
-  </div>
-</div>
-
-<!-- Impact Event Timeline Scrubber -->
-<div id="eventTimeline">
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    <h4 id="tlTitle">Impact Event Timeline</h4>
-    <div class="tl-controls">
-      <button class="btn" id="tlJumpImp">◉ Jump to Impact</button>
-      <button class="btn" id="tlPreview">▶ Preview Impact</button>
-      <button class="btn" id="tlReturn">↺ Return to Sim</button>
-    </div>
-  </div>
-  <div class="tl-track" id="tlTrack">
-    <div class="tl-bar"></div>
-    <div class="tl-progress" id="tlProgress"></div>
-    <div class="tl-now" id="tlNow"></div>
-  </div>
-</div>
-
-<!-- Active Events Panel -->
-<div id="eventPanel">
-  <div class="eh"><span>SCHEDULED IMPACTS</span><span id="evCount">0</span></div>
-  <div id="evBody"></div>
-</div>
-
-<!-- Magazine Cover Splash (National Geographic edition) -->
-<div id="magCover">
-  <div class="cine t"></div>
-  <div class="cine b"></div>
-  <div class="vig"></div>
-  <div class="mc-inner">
-    <div class="mc-kicker"></div>
-    <h1 class="mc-title"></h1>
-    <p class="mc-deck"></p>
-    <div class="mc-meta"></div>
-  </div>
-  <div class="mc-lines"></div>
-</div>
-
-<!-- Keyboard Shortcuts Bar -->
-<div id="shortcuts">
-  <div><span class="k">Space</span>Pause / Play · <span class="k">F</span>Focus · <span class="k">T</span>Orbits · <span class="k">S</span>Scientific</div>
-  <div><span class="k">A</span>Asteroid Modal · <span class="k">R</span>Reset · <span class="k">1-5</span>Sun / Earth / Moon / Mars / Jupiter</div>
-</div>
-
-<!-- Toast -->
-<div id="toast"></div>
-
-<!-- 3D Label Container -->
-<div id="labelLayer"></div>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-
-<script type="module">
+﻿
 /* =============================================================================
-   ORBIT — Scientific Solar System Simulation & Asteroid Impact Laboratory
+   ORBIT â€” Scientific Solar System Simulation & Asteroid Impact Laboratory
    Three.js Interactive Visualization
 
    ASTRONOMICAL & SCIENTIFIC MODEL:
@@ -1066,7 +13,7 @@
    - True anomaly nu and orbital radius r computed, then transformed to Cartesian
      heliocentric coordinates (X, Y, Z).
    - Moons computed via semi-major axis, orbital periods, inclinations, and eccentricities.
-   - Underlying physical units are rigorously stored in AU, km, seconds, kg, and m/s².
+   - Underlying physical units are rigorously stored in AU, km, seconds, kg, and m/sÂ².
    - Display modes (Scientific, Presentation, Cinematic) transform coordinates ONLY
      for rendering without distorting underlying scientific data.
    ============================================================================= */
@@ -1081,8 +28,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
    1. CONSTANTS & PHYSICAL CONSTANTS
    =========================================================================== */
 const AU_KM       = 149597870.7;          // 1 Astronomical Unit in km
-const GM_SUN      = 1.32712440018e20;     // Solar gravitational parameter (m³/s²)
-const G           = 6.67430e-11;          // Universal gravitational constant (m³ kg⁻¹ s⁻²)
+const GM_SUN      = 1.32712440018e20;     // Solar gravitational parameter (mÂ³/sÂ²)
+const G           = 6.67430e-11;          // Universal gravitational constant (mÂ³ kgâ»Â¹ sâ»Â²)
 const JD_J2000    = 2451545.0;            // Julian Date epoch J2000.0 (2000-01-01 12:00:00 TT)
 const DEG         = Math.PI / 180;
 const RAD         = 180 / Math.PI;
@@ -1223,14 +170,14 @@ const MOONS = {
 };
 
 /* ===========================================================================
-   3b. MAGAZINE EDITORIAL CONTENT — "The Orbital Gazette"
+   3b. MAGAZINE EDITORIAL CONTENT â€” "The Orbital Gazette"
    Cover copy, feature decks, article bodies, field notes and photo captions
    for the National Geographic-style edition rendered in the right panel.
    =========================================================================== */
 const MAG_EDITORIAL = {
   sun: {
     no: '01', kicker: 'The Burning Heart', title: 'Sol',
-    deck: 'Ninety-nine point eight percent of all the mass in the solar system, burning for 4.6 billion years — with five billion more still in the tank.',
+    deck: 'Ninety-nine point eight percent of all the mass in the solar system, burning for 4.6 billion years â€” with five billion more still in the tank.',
     body: [
       'Sol is a middle-aged G-type star that fuses four million tonnes of matter into pure light every single second. That light drives every weather system, every ocean current and every living thing on every world it warms.',
       'Its gravity is the architecture of the system: eight planets, the asteroid belts and the scattered Kuiper worlds beyond Neptune all trace their orbits around this single yellow star.'
@@ -1238,64 +185,64 @@ const MAG_EDITORIAL = {
     note: 'Sunlight takes 8 minutes 20 seconds to reach Earth. Every glance at the sky is a small act of time travel.',
     cap: 'The photosphere of Sol, the only star in the system.',
     lines: [
-      ['The Furnace', 'Core temperatures exceed 15 million °C'],
+      ['The Furnace', 'Core temperatures exceed 15 million Â°C'],
       ['The Fleet', '8 planets, 5 dwarf planets, hundreds of known moons'],
       ['The Future', 'In ~5 billion years: red giant, then white dwarf']
     ]
   },
   mercury: {
     no: '02', kicker: 'The Scorched Courier', title: 'Mercury',
-    deck: 'The smallest planet races the Sun in 88 days — and endures the wildest temperature swing in the solar system.',
+    deck: 'The smallest planet races the Sun in 88 days â€” and endures the wildest temperature swing in the solar system.',
     body: [
-      'Mercury is a world of extremes: an airless, cratered rock that swings from 430 °C under a brutal sun to −173 °C in the long night — a range no other planet comes close to matching.',
+      'Mercury is a world of extremes: an airless, cratered rock that swings from 430 Â°C under a brutal sun to âˆ’173 Â°C in the long night â€” a range no other planet comes close to matching.',
       'Yet radar surveys found water ice hiding in permanently shadowed polar craters, and an outsized iron core generates a weak magnetic field. BepiColombo is on its way to take a closer look.'
     ],
-    note: 'A Mercury year lasts 88 Earth days — but a single Mercury day (sunrise to sunrise) lasts 176. There, a day is two years long.',
+    note: 'A Mercury year lasts 88 Earth days â€” but a single Mercury day (sunrise to sunrise) lasts 176. There, a day is two years long.',
     cap: 'Mercury at the current epoch, racing the Sun at 47 km/s.',
     lines: [
-      ['The Swings', 'Surface temperatures from 430 °C down to −173 °C'],
+      ['The Swings', 'Surface temperatures from 430 Â°C down to âˆ’173 Â°C'],
       ['The Ice', 'Water ice survives in craters that never see sunlight'],
-      ['The Race', '88-day year — the fastest orbit of all planets']
+      ['The Race', '88-day year â€” the fastest orbit of all planets']
     ]
   },
   venus: {
     no: '03', kicker: 'The Hidden World', title: 'Venus',
-    deck: 'Beneath clouds of sulfuric acid hides the hottest planet in the solar system — a runaway greenhouse that spins backwards.',
+    deck: 'Beneath clouds of sulfuric acid hides the hottest planet in the solar system â€” a runaway greenhouse that spins backwards.',
     body: [
-      'Venus is Earth’s sinister twin: nearly the same size, yet its dense CO₂ atmosphere traps heat so ferociously that the surface bakes at 465 °C — hot enough to melt lead — under pressure 90 times Earth’s.',
-      'It also spins in reverse, so slowly that a Venusian day outlasts its year. Under the permanent butterscotch sky lie volcanic plains that Magellan’s radar spent years mapping.'
+      'Venus is Earthâ€™s sinister twin: nearly the same size, yet its dense COâ‚‚ atmosphere traps heat so ferociously that the surface bakes at 465 Â°C â€” hot enough to melt lead â€” under pressure 90 times Earthâ€™s.',
+      'It also spins in reverse, so slowly that a Venusian day outlasts its year. Under the permanent butterscotch sky lie volcanic plains that Magellanâ€™s radar spent years mapping.'
     ],
-    note: 'Venus rotates backwards, so the Sun rises in the west — and a single day there lasts 117 Earth days.',
+    note: 'Venus rotates backwards, so the Sun rises in the west â€” and a single day there lasts 117 Earth days.',
     cap: 'Cloud tops of Venus, a veil of sulfuric acid over a furnace.',
     lines: [
-      ['The Heat', '465 °C at the surface — the hottest planet of all'],
+      ['The Heat', '465 Â°C at the surface â€” the hottest planet of all'],
       ['The Spin', 'Retrograde rotation: the Sun rises in the west'],
       ['The Veil', 'Acid clouds 20 km thick hide a volcanic world']
     ]
   },
   earth: {
     no: '04', kicker: 'The Blue Marble', title: 'Earth',
-    deck: 'The only world we know with liquid oceans, breathable air and life — a narrow habitable zone exploited to the last photon.',
+    deck: 'The only world we know with liquid oceans, breathable air and life â€” a narrow habitable zone exploited to the last photon.',
     body: [
-      'Earth is the system’s ocean world: 71% of its surface is liquid water, sheltered by a magnetic field forged in a molten iron core. A nitrogen–oxygen atmosphere scatters sunlight into blue days and red sunsets.',
-      'One large moon steadies its tilt and pulls its tides. It is the only world where water cycles endlessly between rain, river and cloud — and the only known harbor of life.'
+      'Earth is the systemâ€™s ocean world: 71% of its surface is liquid water, sheltered by a magnetic field forged in a molten iron core. A nitrogenâ€“oxygen atmosphere scatters sunlight into blue days and red sunsets.',
+      'One large moon steadies its tilt and pulls its tides. It is the only world where water cycles endlessly between rain, river and cloud â€” and the only known harbor of life.'
     ],
-    note: 'The Moon’s gravity keeps Earth’s axial tilt steady. Without it, our climate — and our seasons — would wander chaotically.',
+    note: 'The Moonâ€™s gravity keeps Earthâ€™s axial tilt steady. Without it, our climate â€” and our seasons â€” would wander chaotically.',
     cap: 'Earth at the current epoch, with live day, night and cloud layers.',
     lines: [
-      ['The Water', '71% ocean — the only world with liquid surface water'],
+      ['The Water', '71% ocean â€” the only world with liquid surface water'],
       ['The Shield', 'A molten-core magnetic field deflects the solar wind'],
       ['The Guardian', 'One large moon steadies the tilt and the tides']
     ]
   },
   mars: {
     no: '05', kicker: 'The Rust Giant', title: 'Mars',
-    deck: 'A cold desert world with rivers that flowed billions of years ago, the tallest volcano in the solar system — and blue sunsets.',
+    deck: 'A cold desert world with rivers that flowed billions of years ago, the tallest volcano in the solar system â€” and blue sunsets.',
     body: [
-      'Mars is a time capsule. Dry riverbeds, lake deltas and water-formed minerals record a wetter past; today it is a frozen, dusty desert beneath a thin CO₂ sky, its polar caps breathing with the seasons.',
-      'It hosts Olympus Mons, a volcano 22 km high — nearly three Everests — and Valles Marineris, a canyon system 4,000 km long. No world beyond Earth has been explored more.'
+      'Mars is a time capsule. Dry riverbeds, lake deltas and water-formed minerals record a wetter past; today it is a frozen, dusty desert beneath a thin COâ‚‚ sky, its polar caps breathing with the seasons.',
+      'It hosts Olympus Mons, a volcano 22 km high â€” nearly three Everests â€” and Valles Marineris, a canyon system 4,000 km long. No world beyond Earth has been explored more.'
     ],
-    note: 'At sunset the Martian sky turns blue around the sinking Sun — the mirror image of Earth’s red dusk, thanks to fine iron dust.',
+    note: 'At sunset the Martian sky turns blue around the sinking Sun â€” the mirror image of Earthâ€™s red dusk, thanks to fine iron dust.',
     cap: 'Mars at the current epoch, its iron-oxide dust glowing rust-red.',
     lines: [
       ['The Volcano', 'Olympus Mons: 22 km high, nearly three Everests'],
@@ -1305,13 +252,13 @@ const MAG_EDITORIAL = {
   },
   jupiter: {
     no: '06', kicker: 'The Colossus', title: 'Jupiter',
-    deck: 'All the other planets could fit inside it — and a storm wider than Earth has raged across its face for centuries.',
+    deck: 'All the other planets could fit inside it â€” and a storm wider than Earth has raged across its face for centuries.',
     body: [
-      'Jupiter is a failed star: 318 Earth masses of hydrogen and helium that never ignited. Its banded cloud belts churn at up to 400 km/h, and the Great Red Spot — a storm wider than Earth — has burned for at least 190 years.',
-      'Its gravity is the system’s broom, deflecting comets and shepherding asteroids, while 95 known moons circle it — from volcanic Io to the ice-encased ocean world Europa.'
+      'Jupiter is a failed star: 318 Earth masses of hydrogen and helium that never ignited. Its banded cloud belts churn at up to 400 km/h, and the Great Red Spot â€” a storm wider than Earth â€” has burned for at least 190 years.',
+      'Its gravity is the systemâ€™s broom, deflecting comets and shepherding asteroids, while 95 known moons circle it â€” from volcanic Io to the ice-encased ocean world Europa.'
     ],
-    note: 'The Great Red Spot has been shrinking for 150 years — yet it still swallows Earth whole.',
-    cap: 'Jupiter’s banded cloud system at the current epoch.',
+    note: 'The Great Red Spot has been shrinking for 150 years â€” yet it still swallows Earth whole.',
+    cap: 'Jupiterâ€™s banded cloud system at the current epoch.',
     lines: [
       ['The Storm', 'Great Red Spot: wider than Earth, raging 190+ years'],
       ['The Court', '95 known moons, including Io, Europa and Ganymede'],
@@ -1320,16 +267,16 @@ const MAG_EDITORIAL = {
   },
   saturn: {
     no: '07', kicker: 'The Ringed Jewel', title: 'Saturn',
-    deck: 'Ten thousand sheets of orbiting ice, thin as silk and wider than twenty Earths — the most beautiful structure in the sky.',
+    deck: 'Ten thousand sheets of orbiting ice, thin as silk and wider than twenty Earths â€” the most beautiful structure in the sky.',
     body: [
-      'Saturn’s rings are a masterwork of orbital mechanics: countless particles of water ice, from dust to house-sized boulders, shepherded into narrow bands by small moons — a disk 280,000 km wide and only tens of meters thick.',
+      'Saturnâ€™s rings are a masterwork of orbital mechanics: countless particles of water ice, from dust to house-sized boulders, shepherded into narrow bands by small moons â€” a disk 280,000 km wide and only tens of meters thick.',
       'The planet itself is a pale-gold giant so light it would float in a big enough ocean. Its largest moon, Titan, is the only other world with stable surface liquids: seas of liquid methane.'
     ],
-    note: 'Saturn’s average density is 0.69 g/cm³ — less than water. Given a big enough bathtub, the planet would float.',
+    note: 'Saturnâ€™s average density is 0.69 g/cmÂ³ â€” less than water. Given a big enough bathtub, the planet would float.',
     cap: 'Saturn and its ring plane at the current epoch.',
     lines: [
       ['The Rings', '280,000 km wide, only tens of meters thick'],
-      ['The Float', 'Less dense than water — the only planet that would float'],
+      ['The Float', 'Less dense than water â€” the only planet that would float'],
       ['The Moon', 'Titan: methane rain and hydrocarbon seas']
     ]
   },
@@ -1337,100 +284,100 @@ const MAG_EDITORIAL = {
     no: '08', kicker: 'The Tilted Giant', title: 'Uranus',
     deck: 'Knocked onto its side long ago, it rolls around the Sun with 42-year days and 42-year nights.',
     body: [
-      'Uranus spins at a 98° tilt — rolling on its side like a wheel, probably after a colossal ancient impact. Each pole gets 42 years of continuous daylight, then 42 years of darkness.',
+      'Uranus spins at a 98Â° tilt â€” rolling on its side like a wheel, probably after a colossal ancient impact. Each pole gets 42 years of continuous daylight, then 42 years of darkness.',
       'Methane high in its cold atmosphere absorbs red light, leaving a smooth, featureless cyan disc. Its 28 known moons all carry names from Shakespeare and Pope.'
     ],
-    note: 'At solstice, one of Uranus’ poles points almost straight at the Sun — and the other endures 42 years of night.',
+    note: 'At solstice, one of Uranusâ€™ poles points almost straight at the Sun â€” and the other endures 42 years of night.',
     cap: 'Uranus at the current epoch, a smooth cyan world of methane haze.',
     lines: [
-      ['The Tilt', '98° — the most tipped-over planet in the system'],
+      ['The Tilt', '98Â° â€” the most tipped-over planet in the system'],
       ['The Light', '42 years of day, then 42 years of night at each pole'],
       ['The Court', '28 moons, all named from Shakespeare and Pope']
     ]
   },
   neptune: {
     no: '09', kicker: 'The Windworld', title: 'Neptune',
-    deck: 'Discovered by mathematics before any telescope found it — and home to the fastest winds in the solar system.',
+    deck: 'Discovered by mathematics before any telescope found it â€” and home to the fastest winds in the solar system.',
     body: [
       'Neptune was the first planet found by prediction: in 1846, astronomers aimed a telescope where the math said an unseen world had to be. A year here lasts 165 Earth years.',
       'Yet this distant blue giant is the windiest world we know: supersonic jet streams reach 2,100 km/h. Its largest moon, Triton, orbits backwards and vents nitrogen geysers.'
     ],
-    note: 'Neptune’s winds top 2,100 km/h — faster than sound in its own atmosphere, and the fastest measured anywhere in the solar system.',
+    note: 'Neptuneâ€™s winds top 2,100 km/h â€” faster than sound in its own atmosphere, and the fastest measured anywhere in the solar system.',
     cap: 'Neptune at the current epoch, 30 AU from the Sun.',
     lines: [
-      ['The Winds', '2,100 km/h — the fastest in the solar system'],
+      ['The Winds', '2,100 km/h â€” the fastest in the solar system'],
       ['The Prediction', 'Found by math in 1846, before telescopes saw it'],
       ['The Moon', 'Triton orbits backwards and spews nitrogen geysers']
     ]
   },
   moon: {
     no: '10', kicker: 'Our Faithful Satellite', title: 'Luna',
-    deck: 'Earth’s ancient companion — sculptor of the tides, and the only world beyond ours ever walked upon.',
+    deck: 'Earthâ€™s ancient companion â€” sculptor of the tides, and the only world beyond ours ever walked upon.',
     body: [
-      'Luna formed 4.5 billion years ago from the debris of a Mars-sized impactor that struck the young Earth. Its gravity raises the tides and steadies our axial tilt — the quiet engine of the seasons.',
-      'It is tidally locked, so we always see the same face, and it drifts 3.8 cm farther away every year. Its cratered surface is an unbroken archive of the solar system’s violent youth.'
+      'Luna formed 4.5 billion years ago from the debris of a Mars-sized impactor that struck the young Earth. Its gravity raises the tides and steadies our axial tilt â€” the quiet engine of the seasons.',
+      'It is tidally locked, so we always see the same face, and it drifts 3.8 cm farther away every year. Its cratered surface is an unbroken archive of the solar systemâ€™s violent youth.'
     ],
-    note: 'The Moon recedes from Earth by about 3.8 cm per year — roughly the rate your fingernails grow.',
+    note: 'The Moon recedes from Earth by about 3.8 cm per year â€” roughly the rate your fingernails grow.',
     cap: 'Luna at the current epoch, tidally locked to Earth.',
     lines: [
-      ['The Tides', 'Its gravity pulls Earth’s oceans into tides'],
+      ['The Tides', 'Its gravity pulls Earthâ€™s oceans into tides'],
       ['The Lock', 'Tidally locked: one face always toward Earth'],
       ['The Drift', 'Receding ~3.8 cm per year']
     ]
   },
   io: {
     no: '11', kicker: 'The Volcanic Furnace', title: 'Io',
-    deck: 'The most volcanically active body in the solar system — a sulfur world kneaded and cooked by Jupiter’s gravity.',
+    deck: 'The most volcanically active body in the solar system â€” a sulfur world kneaded and cooked by Jupiterâ€™s gravity.',
     body: [
-      'Io orbits so close to Jupiter that the giant’s tides flex its interior like a stress ball, driving more than 400 active volcanoes — the most geologically violent world known.',
-      'Its patchwork surface of yellow, orange and white sulfur is repainted constantly, while plumes of gas rise hundreds of kilometers and feed Jupiter’s magnetosphere.'
+      'Io orbits so close to Jupiter that the giantâ€™s tides flex its interior like a stress ball, driving more than 400 active volcanoes â€” the most geologically violent world known.',
+      'Its patchwork surface of yellow, orange and white sulfur is repainted constantly, while plumes of gas rise hundreds of kilometers and feed Jupiterâ€™s magnetosphere.'
     ],
-    note: 'Io loses about a tonne of sulfur and oxygen to space every second, feeding Jupiter’s vast magnetosphere.',
+    note: 'Io loses about a tonne of sulfur and oxygen to space every second, feeding Jupiterâ€™s vast magnetosphere.',
     cap: 'Io at the current epoch, painted by sulfur and volcanic ash.',
     lines: [
-      ['The Fires', '400+ active volcanoes — the most in the system'],
+      ['The Fires', '400+ active volcanoes â€” the most in the system'],
       ['The Plumes', 'Sulfur gas fountains rise hundreds of kilometers'],
-      ['The Tides', 'Jupiter’s gravity flexes Io’s interior without rest']
+      ['The Tides', 'Jupiterâ€™s gravity flexes Ioâ€™s interior without rest']
     ]
   },
   europa: {
     no: '12', kicker: 'The Ice Envelope', title: 'Europa',
-    deck: 'A moon of cracked blue ice over a global saltwater ocean — one of the best candidates for life beyond Earth.',
+    deck: 'A moon of cracked blue ice over a global saltwater ocean â€” one of the best candidates for life beyond Earth.',
     body: [
-      'Europa’s shell of water ice is crisscrossed by fractures where Jupiter’s tides flex the crust. Beneath it lies a global ocean — perhaps twice the volume of all Earth’s seas — in contact with a rocky seafloor.',
+      'Europaâ€™s shell of water ice is crisscrossed by fractures where Jupiterâ€™s tides flex the crust. Beneath it lies a global ocean â€” perhaps twice the volume of all Earthâ€™s seas â€” in contact with a rocky seafloor.',
       'Water vapor plumes may vent through the ice to space. Few worlds fire the imagination of astrobiologists like this one.'
     ],
-    note: 'If Europa’s ocean exists as modeled, it likely holds more liquid water than all of Earth’s oceans combined.',
+    note: 'If Europaâ€™s ocean exists as modeled, it likely holds more liquid water than all of Earthâ€™s oceans combined.',
     cap: 'Europa at the current epoch, its ice shell cracked by tides.',
     lines: [
-      ['The Ocean', 'A global subsurface sea, maybe 2× Earth’s oceans'],
+      ['The Ocean', 'A global subsurface sea, maybe 2Ã— Earthâ€™s oceans'],
       ['The Ice', 'A shell of cracked water ice, tens of km thick'],
-      ['The Tides', 'Jupiter’s flexing keeps the hidden ocean liquid']
+      ['The Tides', 'Jupiterâ€™s flexing keeps the hidden ocean liquid']
     ]
   },
   ganymede: {
     no: '13', kicker: 'The Giant Moon', title: 'Ganymede',
-    deck: 'The largest moon in the solar system — bigger than the planet Mercury, and the only moon with its own magnetic field.',
+    deck: 'The largest moon in the solar system â€” bigger than the planet Mercury, and the only moon with its own magnetic field.',
     body: [
-      'Ganymede spans 5,268 km — larger than Mercury. Its surface splits between bright, grooved terrain and older dark highlands, carved by internal resurfacing billions of years ago.',
+      'Ganymede spans 5,268 km â€” larger than Mercury. Its surface splits between bright, grooved terrain and older dark highlands, carved by internal resurfacing billions of years ago.',
       'A salty ocean may lie 100 km beneath its ice shell, and its molten iron core generates the only magnetic field of any moon.'
     ],
     note: 'Ganymede is the only moon in the solar system that generates its own magnetic field.',
-    cap: 'Ganymede at the current epoch, the giant of Jupiter’s court.',
+    cap: 'Ganymede at the current epoch, the giant of Jupiterâ€™s court.',
     lines: [
-      ['The Size', '5,268 km across — bigger than the planet Mercury'],
+      ['The Size', '5,268 km across â€” bigger than the planet Mercury'],
       ['The Field', 'The only moon with its own magnetic field'],
       ['The Deep', 'A possible ocean ~100 km below the ice']
     ]
   },
   callisto: {
     no: '14', kicker: 'The Ancient World', title: 'Callisto',
-    deck: 'The most heavily cratered body in the solar system — a frozen archive of the system’s violent first billion years.',
+    deck: 'The most heavily cratered body in the solar system â€” a frozen archive of the systemâ€™s violent first billion years.',
     body: [
-      'Callisto is a dark ice-and-rock world so saturated with craters that no ancient surface remains unscarred — a fossil record of the heavy bombardment that shaped the young solar system.',
-      'Far from Jupiter’s harshest radiation, a slushy layer and a deep ocean may persist beneath its crust, making it a quiet cousin of Europa.'
+      'Callisto is a dark ice-and-rock world so saturated with craters that no ancient surface remains unscarred â€” a fossil record of the heavy bombardment that shaped the young solar system.',
+      'Far from Jupiterâ€™s harshest radiation, a slushy layer and a deep ocean may persist beneath its crust, making it a quiet cousin of Europa.'
     ],
-    note: 'Callisto’s surface is the oldest in the Jovian system — a ~4-billion-year-old archive of the early bombardment.',
+    note: 'Callistoâ€™s surface is the oldest in the Jovian system â€” a ~4-billion-year-old archive of the early bombardment.',
     cap: 'Callisto at the current epoch, saturated with ancient craters.',
     lines: [
       ['The Craters', 'The most heavily cratered body in the system'],
@@ -1440,12 +387,12 @@ const MAG_EDITORIAL = {
   },
   titan: {
     no: '15', kicker: 'The Orange World', title: 'Titan',
-    deck: 'The only other world with lakes and rivers — except they are liquid methane, under a haze a hundred kilometers thick.',
+    deck: 'The only other world with lakes and rivers â€” except they are liquid methane, under a haze a hundred kilometers thick.',
     body: [
-      'Titan is the only moon with a dense atmosphere: a nitrogen haze turned orange by organic chemistry. It is the only place besides Earth where liquid pools on the surface — in this case, seas of methane and ethane.',
-      'Cassini’s radar mapped its dunes, river channels and polar seas. Somewhere beneath, a water ocean hides under the ice crust.'
+      'Titan is the only moon with a dense atmosphere: a nitrogen haze turned orange by organic chemistry. It is the only place besides Earth where liquid pools on the surface â€” in this case, seas of methane and ethane.',
+      'Cassiniâ€™s radar mapped its dunes, river channels and polar seas. Somewhere beneath, a water ocean hides under the ice crust.'
     ],
-    note: 'Titan is the only world besides Earth with stable surface liquids — and it rains liquid methane from orange clouds.',
+    note: 'Titan is the only world besides Earth with stable surface liquids â€” and it rains liquid methane from orange clouds.',
     cap: 'Titan at the current epoch, an orange veil over methane seas.',
     lines: [
       ['The Rain', 'Liquid methane falls from orange clouds'],
@@ -1456,7 +403,7 @@ const MAG_EDITORIAL = {
 };
 
 /* ===========================================================================
-   3c. PLANET SNAPSHOT RENDERER — "Magazine Photograph" Generator
+   3c. PLANET SNAPSHOT RENDERER â€” "Magazine Photograph" Generator
    Renders a close-up portrait of any celestial body with an offscreen
    WebGL context: cloned materials, real sun direction, dramatic lighting.
    Returns a JPEG data-URL for the magazine hero photograph.
@@ -1971,35 +918,35 @@ class TextureFactory {
 
   static _landFieldProcedural(u, v) {
     // Continuous land/ocean field in ~[0,1]: ~0 open ocean, ~1 deep continent.
-    // Uses WIDE Gaussian blobs (σ = 15-30°) to define continent MASS,
+    // Uses WIDE Gaussian blobs (Ïƒ = 15-30Â°) to define continent MASS,
     // then NARROW blobs for islands, then fine noise only at coastlines.
     const lon = (u - 0.5) * 360;
     const lat = (0.5 - v) * 180;
 
-    // ===== Continent mass blobs (WIDE Gaussian, σ≈20-30°) =====
+    // ===== Continent mass blobs (WIDE Gaussian, Ïƒâ‰ˆ20-30Â°) =====
     // Each continent gets 1-2 wide blobs centered on its mass.
     // These create the recognizable continental shapes.
     // The sum of all continent blobs defines the base land field.
     let field = 0;
 
-    // North America – two overlapping blobs (west + east mass)
+    // North America â€“ two overlapping blobs (west + east mass)
     field += 0.75 * Math.exp(-(((lon + 105) * (lon + 105)) / 2200.0 + ((lat - 48) * (lat - 48)) / 750.0));
     field += 0.45 * Math.exp(-(((lon + 140) * (lon + 140)) / 800.0 + ((lat - 60) * (lat - 60)) / 500.0));
-    // South America – single blob centered on mass
+    // South America â€“ single blob centered on mass
     field += 0.70 * Math.exp(-(((lon + 55) * (lon + 55)) / 1000.0 + ((lat - 5) * (lat - 5)) / 900.0));
-    // Africa – single blob centered on mass
+    // Africa â€“ single blob centered on mass
     field += 0.65 * Math.exp(-(((lon - 20) * (lon - 20)) / 1600.0 + ((lat - 2) * (lat - 2)) / 1500.0));
-    // Europe – single blob
+    // Europe â€“ single blob
     field += 0.55 * Math.exp(-(((lon - 10) * (lon - 10)) / 1200.0 + ((lat - 52) * (lat - 52)) / 500.0));
-    // Asia – two overlapping blobs (west + east mass)
+    // Asia â€“ two overlapping blobs (west + east mass)
     field += 0.70 * Math.exp(-(((lon - 70) * (lon - 70)) / 4000.0 + ((lat - 48) * (lat - 48)) / 1600.0));
     field += 0.40 * Math.exp(-(((lon - 120) * (lon - 120)) / 1000.0 + ((lat - 50) * (lat - 50)) / 600.0));
-    // Australia – single blob
+    // Australia â€“ single blob
     field += 0.60 * Math.exp(-(((lon - 135) * (lon - 135)) / 800.0 + ((lat + 24) * (lat + 24)) / 400.0));
-    // Greenland – single blob
+    // Greenland â€“ single blob
     field += 0.40 * Math.exp(-(((lon + 42) * (lon + 42)) / 500.0 + ((lat - 72) * (lat - 72)) / 350.0));
 
-    // ===== Islands & peninsulas (NARROW blobs, σ≈3-8°) =====
+    // ===== Islands & peninsulas (NARROW blobs, Ïƒâ‰ˆ3-8Â°) =====
     // These add recognizable details without changing continent shape.
     // Each island blob adds a small bump that only matters near the coast.
     // Antarctica (handled in _earth() at lat < -62, but add base field)
@@ -2061,13 +1008,13 @@ class TextureFactory {
     field += 0.06 * Math.exp(-(((lon - 33) * (lon - 33)) / 60.0 + ((lat - 39) * (lat - 39)) / 30.0));
 
     // ===== Fine coastline perturbation =====
-    // Only perturbs where field ≈ 0.2–0.7 (the coast), not on open ocean or deep land.
+    // Only perturbs where field â‰ˆ 0.2â€“0.7 (the coast), not on open ocean or deep land.
     // This avoids visible banding in the ocean and land interior.
     let coastNoise = 0;
-    // Medium detail (peninsulas, bays): wavelength ~30° longitude
+    // Medium detail (peninsulas, bays): wavelength ~30Â° longitude
     let cf1 = ((lon % 35) + 35) / 35;
     coastNoise += fbm(cf1 * 4.0 + 1.1, v * 6.0 + 3.3, 3) * 0.04;
-    // Fine detail (inlets, capes): wavelength ~12° longitude
+    // Fine detail (inlets, capes): wavelength ~12Â° longitude
     let cf2 = ((lon % 12) + 12) / 12;
     coastNoise += fbm(cf2 * 8.0 + 5.7, v * 10.0 + 7.2, 3) * 0.03;
     // Only apply near coastlines (where land field transitions)
@@ -3287,7 +2234,7 @@ const KNOWN_NEOS = {
     palermoScale: '-2.12',
     hazard: false,
     el: { a: 1.258, e: 0.174, i: 2.89, O: 338.4, w: 24.3 },
-    description: 'Discovered in Feb 2023 with an initial 1-in-560 impact probability for Valentine’s Day 2046, later safely ruled out following high-precision radar refinement.'
+    description: 'Discovered in Feb 2023 with an initial 1-in-560 impact probability for Valentineâ€™s Day 2046, later safely ruled out following high-precision radar refinement.'
   }
 };
 
@@ -4320,25 +3267,25 @@ class SolarSystem {
    16. UI MANAGER & INTERACTIVE CONTROLS
    =========================================================================== */
 const fmtNum = (n) => {
-  if (n == null || !Number.isFinite(n)) return '—';
+  if (n == null || !Number.isFinite(n)) return 'â€”';
   if (Math.abs(n) < 1e-3 && n !== 0) return n.toExponential(3);
   if (Math.abs(n) > 1e9) return n.toExponential(3);
   return Number(n.toLocaleString('en-US', { maximumFractionDigits: 2 }));
 };
 const fmtDist = (km, mode) => {
-  if (km == null || !Number.isFinite(km)) return '—';
+  if (km == null || !Number.isFinite(km)) return 'â€”';
   if (mode === 'AU') return (km / AU_KM).toFixed(5) + ' AU';
   if (mode === 'sci') return km.toExponential(3) + ' km';
   return fmtNum(km) + ' km';
 };
 const fmtMass = (kg, mode) => {
-  if (mode === 'AU') return (kg / BODIES.sun.mass).toExponential(4) + ' M☉';
+  if (mode === 'AU') return (kg / BODIES.sun.mass).toExponential(4) + ' Mâ˜‰';
   return kg.toExponential(3) + ' kg';
 };
 const fmtDayHours = (h) => {
   const neg = h < 0, a = Math.abs(h);
   const s = a >= 48 ? (a / 24).toFixed(1) + ' days' : a.toFixed(1) + ' h';
-  return neg ? s + ' · retrograde' : s;
+  return neg ? s + ' Â· retrograde' : s;
 };
 
 class UIManager {
@@ -4568,7 +3515,7 @@ class UIManager {
   togglePlay() {
     this.s.clock.paused = !this.s.clock.paused;
     const b = document.getElementById('btnPause');
-    b.textContent = this.s.clock.paused ? '▶' : '❚❚';
+    b.textContent = this.s.clock.paused ? 'â–¶' : 'âšâš';
     b.classList.toggle('play', !this.s.clock.paused);
   }
 
@@ -4730,19 +3677,19 @@ class UIManager {
 
       card.innerHTML = `
         <div class="neo-header">
-          <div class="neo-title">☄ ${neo.name}</div>
+          <div class="neo-title">â˜„ ${neo.name}</div>
           <span class="neo-tag ${neo.hazard ? 'hazard' : ''}">${neo.hazard ? 'PHA Hazard' : 'Close Flyby'}</span>
         </div>
         <div class="neo-details">
           <b>Close Approach:</b> ${dateStr}<br>
           <b>Miss Distance:</b> ${distStr}<br>
-          <b>Diameter:</b> ~${neo.diameter} m · <b>Speed:</b> ${neo.velocityKmS} km/s · <b>Type:</b> ${neo.material}<br>
-          <div class="neo-corridor"><b>3σ Error Corridor:</b> ±${fmtNum(neo.errorMarginKm)} km</div>
+          <b>Diameter:</b> ~${neo.diameter} m Â· <b>Speed:</b> ${neo.velocityKmS} km/s Â· <b>Type:</b> ${neo.material}<br>
+          <div class="neo-corridor"><b>3Ïƒ Error Corridor:</b> Â±${fmtNum(neo.errorMarginKm)} km</div>
           <div style="font-size:8.5px; color:var(--text-muted); margin-top:2px;">${neo.description}</div>
         </div>
         <div class="neo-actions">
-          <button class="btn btn-view-traj" title="View trajectory and 3σ uncertainty error corridor">🔍 Trajectory</button>
-          <button class="btn btn-impact" title="Schedule and simulate Earth impact scenario">💥 Simulate Impact</button>
+          <button class="btn btn-view-traj" title="View trajectory and 3Ïƒ uncertainty error corridor">ðŸ” Trajectory</button>
+          <button class="btn btn-impact" title="Schedule and simulate Earth impact scenario">ðŸ’¥ Simulate Impact</button>
         </div>
       `;
 
@@ -4780,7 +3727,7 @@ class UIManager {
     }
     s.selectAsteroid(ev.key);
     s.focusSelected();
-    this.toast(`Viewing trajectory & 3σ error corridor (±${fmtNum(neo.errorMarginKm)} km) for ${neo.name}`);
+    this.toast(`Viewing trajectory & 3Ïƒ error corridor (Â±${fmtNum(neo.errorMarginKm)} km) for ${neo.name}`);
   }
 
   scheduleNEOImpact(neoKey, isPreview = false) {
@@ -4831,8 +3778,8 @@ class UIManager {
       ['Earth & Moon System', 'earthmoon', 'High-resolution Earth-Moon orbital telemetry'],
       ['Inner Solar System', 'inner', 'Mercury, Venus, Earth, and Mars'],
       ['Full Solar System', 'outer', 'Complete planetary system to Neptune'],
-      ['Impact — Earth (500m Iron)', 'imp_earth', 'Simulated Earth collision scenario'],
-      ['Impact — Moon (300m Stone)', 'imp_moon', 'Simulated lunar surface impact'],
+      ['Impact â€” Earth (500m Iron)', 'imp_earth', 'Simulated Earth collision scenario'],
+      ['Impact â€” Moon (300m Stone)', 'imp_moon', 'Simulated lunar surface impact'],
       ['Multiple Simultaneous Impacts', 'multi', 'Simulations across Earth, Moon, and Mars']
     ];
     for (const [label, val, desc] of items) {
@@ -4924,11 +3871,11 @@ class UIManager {
     target.innerHTML = '';
     const box = document.createElement('div'); box.className = 'obj-group'; box.textContent = 'Scientific Data Export';
     const wrap = document.createElement('div'); wrap.style.padding = '4px 10px 14px'; wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.gap = '4px';
-    const b1 = document.createElement('button'); b1.className = 'btn'; b1.textContent = '⤓ Export Simulation State (JSON)';
+    const b1 = document.createElement('button'); b1.className = 'btn'; b1.textContent = 'â¤“ Export Simulation State (JSON)';
     b1.onclick = () => this.exportState();
-    const b2 = document.createElement('button'); b2.className = 'btn'; b2.textContent = '⤓ Export Impact Physics (JSON)';
+    const b2 = document.createElement('button'); b2.className = 'btn'; b2.textContent = 'â¤“ Export Impact Physics (JSON)';
     b2.onclick = () => this.exportImpact();
-    const b3 = document.createElement('button'); b3.className = 'btn'; b3.textContent = '⧉ Copy Telemetry to Clipboard';
+    const b3 = document.createElement('button'); b3.className = 'btn'; b3.textContent = 'â§‰ Copy Telemetry to Clipboard';
     b3.onclick = () => this.copyState();
     wrap.appendChild(b1); wrap.appendChild(b2); wrap.appendChild(b3);
     target.appendChild(box);
@@ -5028,15 +3975,15 @@ class UIManager {
     const mc = document.getElementById('modalContent');
     const now = this.s.clock.date;
     mc.innerHTML = `
-      <h2>☄ Configure Asteroid Impact Event</h2>
+      <h2>â˜„ Configure Asteroid Impact Event</h2>
       <div class="desc">Define physical properties and orbital encounter trajectory for a simulated impactor. Energy dissipation and crater formation calculations are performed in real time.</div>
 
       <div class="section-label" style="margin-top:0">Quick Load Known NEO / PHA Asteroid</div>
       <div class="preset-bar">
-        <button class="btn" data-neo="apophis">☄ 99942 Apophis (2029)</button>
-        <button class="btn" data-neo="bennu">☄ 101955 Bennu (2037)</button>
-        <button class="btn" data-neo="da1950">☄ (29075) 1950 DA (2039)</button>
-        <button class="btn" data-neo="dw2023">☄ 2023 DW (2046)</button>
+        <button class="btn" data-neo="apophis">â˜„ 99942 Apophis (2029)</button>
+        <button class="btn" data-neo="bennu">â˜„ 101955 Bennu (2037)</button>
+        <button class="btn" data-neo="da1950">â˜„ (29075) 1950 DA (2039)</button>
+        <button class="btn" data-neo="dw2023">â˜„ 2023 DW (2046)</button>
       </div>
 
       <div class="modal-grid">
@@ -5053,20 +4000,20 @@ class UIManager {
 
         <div class="field"><label>Asteroid Diameter (m)</label><input type="number" id="mDiam" value="500" min="1"></div>
         <div class="field"><label>Composition Material</label><select id="mMaterial">${Object.keys(DENSITIES).map(m => `<option value="${m}">${m}</option>`).join('')}</select></div>
-        <div class="field"><label>Bulk Density (kg/m³)</label><input type="number" id="mDensity" value="7800" min="100"></div>
+        <div class="field"><label>Bulk Density (kg/mÂ³)</label><input type="number" id="mDensity" value="7800" min="100"></div>
         <div class="field"><label>Approach Velocity</label><input type="number" id="mVel" value="25" min="0.1"></div>
         <div class="field"><label>Velocity Unit</label><select id="mVelUnit"><option value="1000">km/s</option><option value="1">m/s</option></select></div>
-        <div class="field"><label>Approach Azimuth (°)</label><input type="number" id="mAz" value="90" min="0" max="360"></div>
-        <div class="field"><label>Approach Elevation (°)</label><input type="number" id="mElev" value="25" min="0" max="89"></div>
-        <div class="field"><label>Impact Angle from Vertical (°)</label><input type="number" id="mAngle" value="45" min="5" max="85"></div>
+        <div class="field"><label>Approach Azimuth (Â°)</label><input type="number" id="mAz" value="90" min="0" max="360"></div>
+        <div class="field"><label>Approach Elevation (Â°)</label><input type="number" id="mElev" value="25" min="0" max="89"></div>
+        <div class="field"><label>Impact Angle from Vertical (Â°)</label><input type="number" id="mAngle" value="45" min="5" max="85"></div>
       </div>
 
       <div class="section-label">Calculated Physical Estimates</div>
       <div class="modal-grid" style="gap:8px">
-        <div class="stat"><span class="k">Impact Velocity (v_imp)</span><span class="v" id="mVimp">—</span></div>
-        <div class="stat"><span class="k">Kinetic Energy (E = ½mv²)</span><span class="v" id="mEnergy">—</span></div>
-        <div class="stat"><span class="k">TNT Equivalent</span><span class="v" id="mMega">—</span></div>
-        <div class="stat"><span class="k">Approx. Crater Diameter</span><span class="v" id="mCrater">—</span></div>
+        <div class="stat"><span class="k">Impact Velocity (v_imp)</span><span class="v" id="mVimp">â€”</span></div>
+        <div class="stat"><span class="k">Kinetic Energy (E = Â½mvÂ²)</span><span class="v" id="mEnergy">â€”</span></div>
+        <div class="stat"><span class="k">TNT Equivalent</span><span class="v" id="mMega">â€”</span></div>
+        <div class="stat"><span class="k">Approx. Crater Diameter</span><span class="v" id="mCrater">â€”</span></div>
       </div>
 
       <div class="err" id="mErr"></div>
@@ -5138,7 +4085,7 @@ class UIManager {
 
     if (!Number.isFinite(diam) || diam <= 0) { err.textContent = 'Diameter must be > 0.'; return { ok: false }; }
     if (!Number.isFinite(density) || density <= 0) { err.textContent = 'Density must be > 0.'; return { ok: false }; }
-    if (!Number.isFinite(vel) || vel < 0) { err.textContent = 'Velocity must be ≥ 0.'; return { ok: false }; }
+    if (!Number.isFinite(vel) || vel < 0) { err.textContent = 'Velocity must be â‰¥ 0.'; return { ok: false }; }
     if (mo < 1 || mo > 12) { err.textContent = 'Month must be 1-12.'; return { ok: false }; }
     const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
     if (d < 1 || d > daysInMonth) { err.textContent = `Day must be 1-${daysInMonth}.`; return { ok: false }; }
@@ -5207,10 +4154,10 @@ class UIManager {
         <span class="dc" style="background:${col}"></span>
         <div class="em" data-key="${e.key}">
           <b>${e.targetName}</b>
-          <small>${e.asteroid.material} · ${s.clock.fmtDate(s.clock._jdToGregorian(e.asteroid.impactDate))} · <span data-st>${status}</span></small>
+          <small>${e.asteroid.material} Â· ${s.clock.fmtDate(s.clock._jdToGregorian(e.asteroid.impactDate))} Â· <span data-st>${status}</span></small>
         </div>
         <button data-prev="${e.key}">Preview</button>
-        <button class="rm" data-rm="${e.key}">✕</button>
+        <button class="rm" data-rm="${e.key}">âœ•</button>
       `;
       body.appendChild(row);
     });
@@ -5250,7 +4197,7 @@ class UIManager {
     if (!isPaused) {
       const absSp = Math.abs(sp);
       const sign = sp < 0 ? 'REV ' : '';
-      if (Math.abs(absSp - 1 / 86400) < 1e-7) label = sign + '1× (1s/s)';
+      if (Math.abs(absSp - 1 / 86400) < 1e-7) label = sign + '1Ã— (1s/s)';
       else if (Math.abs(absSp - 60 / 86400) < 1e-6) label = sign + '1 min/s';
       else if (Math.abs(absSp - 1 / 24) < 1e-4) label = sign + '1 hr/s';
       else if (Math.abs(absSp - 1.0) < 1e-3) label = sign + '1 day/s';
@@ -5298,8 +4245,8 @@ class UIManager {
     const a = event.asteroid, t = event.targetBody;
     const hud = document.getElementById('impactHud');
     hud.classList.add('on');
-    document.getElementById('impactBanner').innerHTML = `SURFACE IMPACT DETECTED · <b>${t.data.name.toUpperCase()}</b>`;
-    document.getElementById('impactNum').textContent = `${(a.vImpact / 1000).toFixed(2)} km/s · ${a.megatons > 1e6 ? a.megatons.toExponential(2) : a.megatons.toFixed(1)} MT TNT · Est. Crater: ~${a.craterDiameter > 1000 ? (a.craterDiameter / 1000).toFixed(1) + ' km' : a.craterDiameter.toFixed(0) + ' m'}`;
+    document.getElementById('impactBanner').innerHTML = `SURFACE IMPACT DETECTED Â· <b>${t.data.name.toUpperCase()}</b>`;
+    document.getElementById('impactNum').textContent = `${(a.vImpact / 1000).toFixed(2)} km/s Â· ${a.megatons > 1e6 ? a.megatons.toExponential(2) : a.megatons.toFixed(1)} MT TNT Â· Est. Crater: ~${a.craterDiameter > 1000 ? (a.craterDiameter / 1000).toFixed(1) + ' km' : a.craterDiameter.toFixed(0) + ' m'}`;
 
     const fl = document.getElementById('impactFlash');
     fl.style.transition = 'none'; fl.style.opacity = '0.95';
@@ -5327,7 +4274,7 @@ class UIManager {
     const el = document.getElementById('infoBody');
     if (!key) {
       document.getElementById('right').classList.remove('magazine');
-      el.innerHTML = '<div class="empty"><div class="big">◐</div>Select a celestial body or scheduled asteroid to inspect physical properties, orbital vectors, and real-time encounter telemetry.</div>';
+      el.innerHTML = '<div class="empty"><div class="big">â—</div>Select a celestial body or scheduled asteroid to inspect physical properties, orbital vectors, and real-time encounter telemetry.</div>';
       return;
     }
 
@@ -5336,19 +4283,19 @@ class UIManager {
       const evKey = key.slice(6);
       const ev = s.events.find(e => e.key === evKey);
       if (!ev) {
-        el.innerHTML = '<div class="empty"><div class="big">◐</div>Impact event has concluded or was removed.</div>';
+        el.innerHTML = '<div class="empty"><div class="big">â—</div>Impact event has concluded or was removed.</div>';
         return;
       }
       const a = ev.asteroid;
       const t = ev.targetBody;
       const tti = a.impactDate - s.clock.jd;
       const ttiStr = tti > 0 ? (tti >= 1 ? tti.toFixed(2) + ' days' : (tti * 24).toFixed(1) + ' hours') : 'Impact Reached';
-      const distStr = a.distKm != null ? fmtDist(a.distKm, this.unit) : '—';
+      const distStr = a.distKm != null ? fmtDist(a.distKm, this.unit) : 'â€”';
       const name = a.name || `${a.diameter}m ${a.material} Impactor`;
 
       let html = '';
       html += `<div class="info-title"><span class="sw" style="background:#f87171; box-shadow:0 0 12px rgba(248,113,113,0.8)"></span><div><h2>${name}</h2><div class="ty" style="color:var(--danger)">Near-Earth Asteroid / Impactor</div></div></div>`;
-      html += `<div class="info-sub">Target Body: <b>${t.data.name}</b> · Trajectory: Approach Vector</div>`;
+      html += `<div class="info-sub">Target Body: <b>${t.data.name}</b> Â· Trajectory: Approach Vector</div>`;
 
       html += `<div class="info-actions">
         <div class="unit-toggle" id="unitToggle">
@@ -5362,16 +4309,16 @@ class UIManager {
       html += this.stat('Mean Diameter', fmtDist(a.diameter / 1000, this.unit));
       html += this.stat('Estimated Mass', fmtMass(a.mass, this.unit));
       html += this.stat('Composition Material', a.material);
-      html += this.stat('Bulk Density', `${a.density.toLocaleString()} kg/m³`);
+      html += this.stat('Bulk Density', `${a.density.toLocaleString()} kg/mÂ³`);
 
       html += `<div class="section-label">Encounter & Trajectory Telemetry</div>`;
       html += this.stat('Time to Impact (TTI)', ttiStr);
       html += this.stat('Distance to Surface', distStr);
       html += this.stat('Approach Velocity (v_inf)', `${(a.velocity / 1000).toFixed(2)} km/s`);
       html += this.stat('Atmospheric Entry Velocity (v_imp)', `${(a.vImpact / 1000).toFixed(2)} km/s`);
-      html += this.stat('Approach Azimuth / Elevation', `${(a.approachAz || 90).toFixed(1)}° / ${(a.approachElev || 25).toFixed(1)}°`);
+      html += this.stat('Approach Azimuth / Elevation', `${(a.approachAz || 90).toFixed(1)}Â° / ${(a.approachElev || 25).toFixed(1)}Â°`);
       if (a.errorMarginKm > 0) {
-        html += this.stat('3σ Orbital Error Margin', `±${fmtNum(a.errorMarginKm)} km`);
+        html += this.stat('3Ïƒ Orbital Error Margin', `Â±${fmtNum(a.errorMarginKm)} km`);
       }
 
       html += `<div class="section-label">Estimated Impact Consequences</div>`;
@@ -5381,8 +4328,8 @@ class UIManager {
       html += this.stat('Estimated Crater Depth', a.craterDepth > 1000 ? (a.craterDepth / 1000).toFixed(2) + ' km' : a.craterDepth.toFixed(1) + ' m');
 
       html += `<div class="info-actions" style="margin-top:14px; gap:8px;">
-        <button class="btn btn-primary" id="infoFocus" style="flex:1">◎ Focus Asteroid</button>
-        <button class="btn" id="infoPreview" style="flex:1">▶ Preview Encounter</button>
+        <button class="btn btn-primary" id="infoFocus" style="flex:1">â—Ž Focus Asteroid</button>
+        <button class="btn" id="infoPreview" style="flex:1">â–¶ Preview Encounter</button>
       </div>`;
 
       el.innerHTML = html;
@@ -5398,7 +4345,7 @@ class UIManager {
       return;
     }
 
-    /* ---------- The Orbital Gazette — Magazine Edition ---------- */
+    /* ---------- The Orbital Gazette â€” Magazine Edition ---------- */
     const body = s.bodies[key] || s.moons[key];
     const d = body.data;
     const isMoon = !!d.parent;
@@ -5426,9 +4373,9 @@ class UIManager {
     const simDate = s.clock.fmtDate(s.clock.date);
 
     const ed = MAG_EDITORIAL[key] || {
-      no: '—', kicker: isMoon ? 'Natural Satellite' : (isSun ? 'Central Star' : 'Celestial Body'),
+      no: 'â€”', kicker: isMoon ? 'Natural Satellite' : (isSun ? 'Central Star' : 'Celestial Body'),
       title: d.name,
-      deck: `A field survey of ${d.name} — physical profile and live orbital telemetry from the J2000 epoch.`,
+      deck: `A field survey of ${d.name} â€” physical profile and live orbital telemetry from the J2000 epoch.`,
       body: [
         `Orbital elements and the live heliocentric state of ${d.name} are computed below from J2000 Keplerian approximations.`,
         `Use the focus control to fly the camera to ${d.name} and watch its motion at the current simulation rate.`
@@ -5444,16 +4391,16 @@ class UIManager {
       calls.push(
         ['Mean Diameter', fmtDist(d.radius * 2, this.unit)],
         ['Mass', fmtMass(d.mass, this.unit)],
-        ['Surface Gravity', '274 m/s²'],
+        ['Surface Gravity', '274 m/sÂ²'],
         ['Orbiting Planets', '8'],
         ['Stellar Age', '4.6 billion yr'],
-        ['Photosphere', '5,505 °C']
+        ['Photosphere', '5,505 Â°C']
       );
     } else if (isMoon) {
       calls.push(
         ['Mean Diameter', fmtDist(d.radius * 2, this.unit)],
         ['Mass', fmtMass(d.mass, this.unit)],
-        ['Surface Gravity', d.gravity.toFixed(2) + ' m/s²'],
+        ['Surface Gravity', d.gravity.toFixed(2) + ' m/sÂ²'],
         ['Orbit Radius', fmtDist(d.dist, this.unit)],
         ['Orbital Period', d.period + ' days'],
         ['Parent Body', s.bodies[d.parent] ? s.bodies[d.parent].data.name : d.parent]
@@ -5462,7 +4409,7 @@ class UIManager {
       calls.push(
         ['Mean Diameter', fmtDist(d.radius * 2, this.unit)],
         ['Mass', fmtMass(d.mass, this.unit)],
-        ['Surface Gravity', d.gravity.toFixed(2) + ' m/s²'],
+        ['Surface Gravity', d.gravity.toFixed(2) + ' m/sÂ²'],
         ['Distance from Sun', fmtDist(distSunKm, this.unit)],
         ['Year Length', Math.round(yearDays).toLocaleString() + ' days'],
         ['Day Length', fmtDayHours(rotHours)]
@@ -5479,15 +4426,15 @@ class UIManager {
     html += `<figure class="mag-hero">
       <div class="frame" id="magHeroFrame">
         <div class="dev">DEVELOPING PHOTOGRAPH</div>
-        <img id="magHeroImg" alt="${d.name} — deep space survey" />
+        <img id="magHeroImg" alt="${d.name} â€” deep space survey" />
       </div>
-      <figcaption class="mag-cap"><b>PHOTO —</b> ${ed.cap} <i>ORBIT Deep-Space Survey</i></figcaption>
+      <figcaption class="mag-cap"><b>PHOTO â€”</b> ${ed.cap} <i>ORBIT Deep-Space Survey</i></figcaption>
     </figure>`;
 
     html += `<div class="mag-kicker mag-reveal" style="animation-delay:.05s">${ed.kicker}</div>`;
     html += `<h1 class="mag-title mag-reveal" style="animation-delay:.12s">${ed.title}</h1>`;
     html += `<p class="mag-deck mag-reveal" style="animation-delay:.2s">${ed.deck}</p>`;
-    html += `<div class="mag-byline mag-reveal" style="animation-delay:.28s">BY THE ORBITAL DESK · ${isMoon ? 'NATURAL SATELLITE SECTION' : (isSun ? 'CENTRAL STAR SECTION' : 'MAJOR PLANET SECTION')}</div>`;
+    html += `<div class="mag-byline mag-reveal" style="animation-delay:.28s">BY THE ORBITAL DESK Â· ${isMoon ? 'NATURAL SATELLITE SECTION' : (isSun ? 'CENTRAL STAR SECTION' : 'MAJOR PLANET SECTION')}</div>`;
     html += `<div class="mag-rule mag-reveal" style="animation-delay:.32s"></div>`;
     html += `<div class="mag-body mag-reveal" style="animation-delay:.36s">${ed.body.map(p => `<p>${p}</p>`).join('')}</div>`;
 
@@ -5499,7 +4446,7 @@ class UIManager {
     let detail = '';
     detail += this.stat('Mean Radius', fmtDist(d.radius, this.unit));
     detail += this.stat('Mass', fmtMass(d.mass, this.unit));
-    if (d.tilt != null) detail += this.stat('Axial Tilt', d.tilt.toFixed(2) + '°');
+    if (d.tilt != null) detail += this.stat('Axial Tilt', d.tilt.toFixed(2) + 'Â°');
     if (!isSun) {
       detail += this.stat('Distance from Sun', fmtDist(distSunKm, this.unit));
       if (distEarthKm != null) detail += this.stat('Distance from Earth', fmtDist(distEarthKm, this.unit));
@@ -5507,7 +4454,7 @@ class UIManager {
     }
     if (!isMoon && d.el) {
       detail += this.stat('Orbital Eccentricity', d.el.e.toFixed(5));
-      detail += this.stat('Orbital Inclination', (d.el.i).toFixed(3) + '°');
+      detail += this.stat('Orbital Inclination', (d.el.i).toFixed(3) + 'Â°');
       if (body._ecliptic) {
         detail += this.stat('Heliocentric X', fmtDist(body._ecliptic.x * AU_KM, this.unit));
         detail += this.stat('Heliocentric Y', fmtDist(body._ecliptic.y * AU_KM, this.unit));
@@ -5515,18 +4462,18 @@ class UIManager {
       }
     } else if (isMoon) {
       detail += this.stat('Orbital Period', d.period.toFixed(2) + ' days');
-      detail += this.stat('Orbital Inclination', d.inc.toFixed(2) + '°');
+      detail += this.stat('Orbital Inclination', d.inc.toFixed(2) + 'Â°');
       detail += this.stat('Mean Parent Distance', fmtDist(d.dist, this.unit));
     }
     if (isSun) detail += this.stat('Rotation Period', fmtDayHours(rotHours));
     if (key === 'earth') {
       detail += this.stat('Moon Mean Distance', fmtDist(384400, this.unit));
-      detail += this.stat('Diurnal Rotation Phase', Math.abs(rotAngle).toFixed(1) + '°');
+      detail += this.stat('Diurnal Rotation Phase', Math.abs(rotAngle).toFixed(1) + 'Â°');
       detail += this.stat('Simulated UTC Time', simDate);
     }
 
     html += `<section class="mag-detail mag-reveal" style="animation-delay:.52s">
-      <h3 class="mag-h">Orbital Telemetry · Current Epoch</h3>
+      <h3 class="mag-h">Orbital Telemetry Â· Current Epoch</h3>
       <div class="unit-toggle" id="unitToggle">
         <button data-unit="metric" class="${this.unit === 'metric' ? 'active' : ''}">Metric</button>
         <button data-unit="AU" class="${this.unit === 'AU' ? 'active' : ''}">AU</button>
@@ -5538,7 +4485,7 @@ class UIManager {
     html += `<div class="mag-note mag-reveal" style="animation-delay:.6s"><span class="lbl">Field Note</span><p>${ed.note}</p></div>`;
 
     html += `<div class="mag-foot mag-reveal" style="animation-delay:.66s">
-      <button class="mag-cta" id="infoFocus">◎ Fly the Camera to ${ed.title}</button>
+      <button class="mag-cta" id="infoFocus">â—Ž Fly the Camera to ${ed.title}</button>
       <div class="mag-fine">Orbital positions are calculated using analytical Keplerian approximations based on J2000 epoch elements for scientific visualization and educational planetarium use.</div>
     </div>`;
 
@@ -5579,7 +4526,7 @@ class UIManager {
     cover.querySelector('.mc-kicker').textContent = ed.kicker;
     cover.querySelector('.mc-title').textContent = ed.title;
     cover.querySelector('.mc-deck').textContent = ed.deck;
-    cover.querySelector('.mc-meta').textContent = `NO. ${ed.no} — SOLAR SYSTEM EDITION · ${simDate}`;
+    cover.querySelector('.mc-meta').textContent = `NO. ${ed.no} â€” SOLAR SYSTEM EDITION Â· ${simDate}`;
     cover.querySelector('.mc-lines').innerHTML = (ed.lines || [])
       .map(l => `<div class="mc-line"><b>${l[0]}</b>${l[1]}</div>`).join('');
     // Replay entrance animations
@@ -5610,7 +4557,7 @@ class UIManager {
         const ev = s.events.find(e => e.key === evKey);
         if (!ev || !ev.asteroid || !ev.asteroid.mesh) continue;
         body = ev.asteroid;
-        labelName = '☄ ' + (body.name || `${body.diameter}m Impactor`);
+        labelName = 'â˜„ ' + (body.name || `${body.diameter}m Impactor`);
       } else if (key.startsWith('moon:')) {
         body = s.moons[key.slice(5)];
         labelName = body ? body.data.name : '';
@@ -5677,6 +4624,4 @@ async function main() {
 }
 
 main();
-</script>
-</body>
-</html>
+

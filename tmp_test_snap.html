@@ -2,11 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
-<meta name="theme-color" content="#030712" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ORBIT — Interactive 3D Solar System &amp; Asteroid Impact Laboratory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -37,8 +33,6 @@
     margin: 0; padding: 0;
     width: 100%; height: 100%;
     overflow: hidden;
-    overscroll-behavior: none;
-    -webkit-text-size-adjust: 100%;
     background: var(--bg);
     color: var(--text);
     font-family: var(--sans);
@@ -46,7 +40,6 @@
     user-select: none;
     -webkit-user-select: none;
   }
-  button, input, select { touch-action: manipulation; }
 
   #app { position: fixed; inset: 0; }
   canvas { display: block; width: 100%; height: 100%; }
@@ -93,9 +86,6 @@
   .hud { position: absolute; z-index: 10; pointer-events: none; }
   .hud * { pointer-events: auto; }
   #labelLayer { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
-
-  /* Mobile-only controls (revelados por media query) */
-  #mobLeftBtn, #mobInfoBtn, #rightClose, #scrim { display: none; }
 
   /* ---------- Top Bar ---------- */
   #topbar {
@@ -636,177 +626,6 @@
   #magCover.on .mc-line:nth-child(3) { animation-delay: 1.5s; }
   @keyframes mcFade { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
   @keyframes mcTitle { from { opacity: 0; transform: translateY(36px); filter: blur(12px); } to { opacity: 1; transform: none; filter: blur(0); } }
-
-  /* ========================================================================
-     SMARTPHONE / COARSE-POINTER LAYOUT
-     Paneles laterales → drawers; panel derecho → bottom sheet;
-     dock inferior scrolleable con objetivos táctiles ≥ 32px; safe-areas.
-     ======================================================================== */
-  @media (max-width: 930px), (pointer: coarse) {
-    /* ---------- Top bar compacta ---------- */
-    #topbar {
-      height: auto; min-height: 46px; gap: 8px;
-      padding: calc(6px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 6px calc(10px + env(safe-area-inset-left));
-    }
-    #brand .ver { display: none; }
-    #brand .logo { font-size: 15px; }
-    #clock { margin-left: 6px; padding-left: 8px; }
-    #clock .date { font-size: 11.5px; }
-    #clock .jd { display: none; }
-    #topbar > .ctrl-group { display: none; }           /* presets de fecha → fuera */
-    #fpsPill, #statusPill { display: none; }
-    #speedPill { padding: 3px 8px; font-size: 10px; }
-
-    #mobLeftBtn, #mobInfoBtn {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 34px; height: 31px; flex: 0 0 auto;
-      border: 1px solid var(--border); border-radius: 8px;
-      background: rgba(15, 23, 42, 0.7); color: var(--text);
-      font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent;
-    }
-    #mobLeftBtn:active, #mobInfoBtn:active { background: rgba(56, 189, 248, 0.25); }
-    #mobInfoBtn { font-size: 15px; font-weight: 700; }
-
-    /* ---------- Scrim ---------- */
-    #scrim {
-      position: fixed; inset: 0; z-index: 25; display: none;
-      background: rgba(3, 7, 18, 0.6);
-      backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
-    }
-    #scrim.on { display: block; }
-
-    /* ---------- Left panel → drawer ---------- */
-    #left {
-      top: 0; left: 0; bottom: 0; height: auto; width: min(330px, 88vw); z-index: 30;
-      padding-top: env(safe-area-inset-top);
-      background: var(--panel-solid);
-      transform: translateX(-102%);
-      box-shadow: 18px 0 48px rgba(0, 0, 0, 0.65);
-    }
-    #left.open { transform: translateX(0); }
-    #left.collapsed { transform: translateX(-102%); }
-    #collapseBtn { display: none; }
-    .panel-tabs .tab-btn { padding: 13px 6px; font-size: 11px; }
-    .obj-row { padding: 10px 10px; }
-    .obj-row .nm { font-size: 13px; }
-    .neo-actions .btn { padding: 7px 9px; font-size: 10px; }
-
-    /* ---------- Right panel → bottom sheet ---------- */
-    #right {
-      top: auto; left: 0; right: 0; bottom: 0; width: 100%; z-index: 30;
-      height: 68vh; height: 68dvh;
-      transform: translateY(102%);
-      border-left: none; border-top: 1px solid var(--border-highlight);
-      border-radius: 16px 16px 0 0;
-      box-shadow: 0 -16px 50px rgba(0, 0, 0, 0.7);
-      background: var(--panel-solid);
-      padding: 22px 16px calc(14px + env(safe-area-inset-bottom));
-    }
-    #right.open { transform: translateY(0); }
-    #right.collapsed { transform: translateY(102%); }
-    #right::before {   /* asa visual del sheet */
-      content: ""; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
-      width: 42px; height: 4px; border-radius: 2px; background: rgba(148, 163, 184, 0.5);
-    }
-    #rightClose {
-      display: flex; align-items: center; justify-content: center;
-      position: absolute; top: 12px; right: 12px; z-index: 3;
-      width: 32px; height: 32px; border-radius: 50%;
-      border: 1px solid var(--border); background: rgba(15, 23, 42, 0.9);
-      color: #fff; font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent;
-    }
-    #right .panel-head { margin: -6px -16px 10px; padding: 8px 16px; }
-
-    /* ---------- Dock inferior scrolleable ---------- */
-    #bottom {
-      height: auto; gap: 7px;
-      padding: 8px calc(10px + env(safe-area-inset-right)) calc(9px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
-    }
-    .bottom-row { scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-    .bottom-row::-webkit-scrollbar { display: none; }
-    #bottom .ctrl-group { flex: 0 0 auto; }
-    #bottom .btn { min-height: 33px; padding: 7px 11px; font-size: 11.5px; }
-    .btn.pause { width: 40px; height: 33px; }
-    .date-inputs input { padding: 7px 5px; font-size: 12px; }
-    #customRateGroup { display: none; }
-    #timeSlider { min-width: 160px; height: 30px; }
-
-    /* ---------- Escala, FAB, paneles flotantes ---------- */
-    #scaleInd { top: calc(54px + env(safe-area-inset-top)); }
-    #scaleInd button { padding: 5px 9px; font-size: 9.5px; }
-    .sci-badge { top: calc(94px + env(safe-area-inset-top)); right: 10px; font-size: 8.5px; padding: 4px 8px; }
-
-    #asteroidFab {
-      bottom: calc(116px + env(safe-area-inset-bottom));
-      right: calc(12px + env(safe-area-inset-right));
-    }
-    #asteroidFab .btn { padding: 11px 15px; font-size: 12px; }
-
-    #eventPanel {
-      top: calc(96px + env(safe-area-inset-top)); left: 10px; right: 10px; width: auto; max-height: 30vh;
-    }
-    #eventTimeline {
-      left: 10px; right: 10px; bottom: calc(172px + env(safe-area-inset-bottom)); height: auto;
-    }
-    #eventTimeline .tl-controls { justify-content: center; }
-    #eventTimeline .tl-controls .btn { padding: 6px 10px; font-size: 10.5px; }
-
-    #impactHud .banner { top: 58px; left: 10px; right: 10px; transform: none; padding: 10px 14px; }
-    #impactHud .banner .num { font-size: 11px; }
-
-    #shortcuts { display: none !important; }
-
-    #toast {
-      top: calc(54px + env(safe-area-inset-top)); left: 50%; right: auto;
-      width: max-content; max-width: 92vw; white-space: normal; text-align: center; font-size: 11.5px;
-    }
-
-    /* ---------- Modal a pantalla completa ---------- */
-    #modalBg { align-items: flex-end; padding: 0; }
-    #modalBg .modal {
-      width: 100%; max-width: 100%; max-height: 92vh; max-height: 92dvh;
-      border-radius: 16px 16px 0 0; border-bottom: none;
-      padding: 18px 16px calc(14px + env(safe-area-inset-bottom));
-    }
-    .modal h2 { font-size: 17px; }
-    .field input, .field select { font-size: 14px; padding: 9px 10px; }
-    .modal-actions .btn { min-height: 36px; padding: 8px 14px; }
-
-    /* ---------- Revista (panel derecho) en móvil ---------- */
-    #right.magazine { width: 100%; height: 78vh; height: 78dvh; }
-    #right.magazine::before { background: rgba(27, 23, 16, 0.4); }
-    #right.magazine #rightClose { background: rgba(27, 23, 16, 0.88); border-color: rgba(27, 23, 16, 0.45); }
-    #right.magazine .mag-mast { padding: 14px 16px 11px; }
-    #right.magazine .mag-title { font-size: 33px; margin: 0 16px; }
-    #right.magazine .mag-hero { margin: 14px 14px 0; }
-    #right.magazine .mag-kicker, #right.magazine .mag-deck,
-    #right.magazine .mag-byline, #right.magazine .mag-rule { margin-left: 16px; margin-right: 16px; }
-    #right.magazine .mag-body {
-      column-count: 1; margin: 12px 16px 0; font-size: 13.5px;
-    }
-    #right.magazine .mag-numbers, #right.magazine .mag-detail,
-    #right.magazine .mag-note { margin-left: 16px; margin-right: 16px; }
-    #right.magazine .mag-foot { margin: 18px 16px 12px; }
-    #right.magazine .mag-cta { min-height: 44px; }
-    #right.magazine .mag-detail .unit-toggle button { padding: 7px 12px; }
-
-    /* ---------- Portada cinematográfica ---------- */
-    #magCover .cine { height: 4.5vh; }
-    #magCover .mc-inner {
-      left: 16px; right: 16px; top: auto; bottom: max(12vh, 96px);
-      transform: none; max-width: none;
-    }
-    #magCover .mc-title { font-size: clamp(44px, 12vw, 72px); }
-    #magCover .mc-kicker { font-size: 10px; letter-spacing: 0.3em; margin-bottom: 10px; }
-    #magCover .mc-deck { font-size: 14px; margin-top: 12px; }
-    #magCover .mc-meta { margin-top: 14px; font-size: 9px; }
-    #magCover .mc-lines { display: none; }
-
-    /* ---------- Etiquetas 3D y carga ---------- */
-    .label3d { font-size: 9px; padding: 2px 5px; }
-    #loading h1 { font-size: 23px; letter-spacing: 0.35em; }
-    #loading .sub { font-size: 9px; letter-spacing: 0.18em; padding: 0 16px; text-align: center; }
-  }
 </style>
 </head>
 <body>
@@ -828,12 +647,8 @@
   </div>
 </div>
 
-<!-- Scrim para paneles/sheets móviles -->
-<div id="scrim"></div>
-
 <!-- Top Bar -->
 <div id="topbar" class="hud">
-  <button id="mobLeftBtn" title="Object Browser" aria-label="Open object browser">☰</button>
   <div id="brand"><span class="logo">ORBIT</span><span class="ver">NASA-LAB 3D</span></div>
   <div id="clock">
     <span class="date" id="clockDate">—</span>
@@ -853,8 +668,7 @@
   <div id="topRight">
     <div class="pill" id="fpsPill" title="Render Frames Per Second"><span class="k">FPS</span><span class="v" id="fpsVal">60</span></div>
     <div class="pill" id="speedPill" title="Current Simulation Rate"><span class="k">SPEED</span><span class="v" id="speedPillVal">1×</span></div>
-    <div class="pill" title="System Status" id="statusPill"><span class="dot" id="statusDot"></span><span class="k" id="statusTxt">SIMULATION READY</span></div>
-    <button id="mobInfoBtn" title="Object Info" aria-label="Open object info">ⓘ</button>
+    <div class="pill" title="System Status"><span class="dot" id="statusDot"></span><span class="k" id="statusTxt">SIMULATION READY</span></div>
   </div>
 </div>
 
@@ -897,7 +711,6 @@
 
 <!-- Right Panel (Object Information) -->
 <div id="right" class="hud">
-  <button id="rightClose" title="Close" aria-label="Close panel">✕</button>
   <div class="panel-head"><span>Telemetry &amp; Orbital Data</span></div>
   <div id="infoBody">
     <div class="empty"><div class="big">◐</div>Select a celestial body to inspect its physical properties, Keplerian elements, and real-time heliocentric coordinates.</div>
@@ -964,7 +777,7 @@
       <button class="btn speed" data-speed="3652.5" title="10 Years per second">10 yr/s</button>
     </div>
 
-    <div class="ctrl-group" id="customRateGroup" style="font-family:var(--mono); font-size:11px; color:var(--text-dim);">
+    <div class="ctrl-group" style="font-family:var(--mono); font-size:11px; color:var(--text-dim);">
       <span>Custom Rate:</span>
       <input type="number" id="inpCustomSpeed" value="250000" min="1" max="100000000" style="width:75px; background:#060d1f; border:1px solid var(--border); color:#fff; padding:3px 6px; border-radius:4px; font-family:var(--mono); font-size:11px;" />
       <button class="btn" id="btnApplyCustomSpeed">Apply</button>
@@ -3830,7 +3643,6 @@ class SolarSystem {
 
     // Event Listeners
     window.addEventListener('resize', () => this._onResize());
-    window.addEventListener('orientationchange', () => setTimeout(() => this._onResize(), 150));
     window.addEventListener('keydown', e => this._onKeyDown(e));
     this.domElement.addEventListener('click', e => this._onClick(e));
     this.domElement.addEventListener('dblclick', e => this._onDblClick(e));
@@ -4216,7 +4028,6 @@ class SolarSystem {
     }
     this.ui.renderInfo(this.selectedKey);
     this.ui.refreshObjectList();
-    if (this.ui.isMob) { this.ui.closeSheet('left'); this.ui.openSheet('right'); }
   }
 
   selectBody(key) {
@@ -4228,7 +4039,6 @@ class SolarSystem {
     this._updateOrbitLines();
     const ed = MAG_EDITORIAL[key];
     if (ed) this.ui.showMagCover(b, ed);
-    if (this.ui.isMob) { this.ui.closeSheet('left'); this.ui.openSheet('right'); }
   }
 
   focusSelected() {
@@ -4253,7 +4063,6 @@ class SolarSystem {
     this.ui.renderInfo(null);
     this.ui.refreshObjectList();
     this._updateOrbitLines();
-    if (this.ui.isMob) this.ui.closeSheet('right');
   }
 
   _loop() {
@@ -4357,72 +4166,8 @@ class UIManager {
     this._buildExport();
     this._buildAsteroidModal();
     this._bindScale();
-    this._initMobile();
     this.renderInfo(null);
     this.updateStatus();
-  }
-
-  /* ---------- Mobile / coarse-pointer layout ---------- */
-  _initMobile() {
-    this.mq = window.matchMedia('(max-width: 930px), (pointer: coarse)');
-    const apply = () => {
-      this.isMob = this.mq.matches;
-      document.body.classList.toggle('mob', this.isMob);
-      const left = document.getElementById('left');
-      const fab = document.getElementById('asteroidFab');
-      const shortcuts = document.getElementById('shortcuts');
-      if (this.isMob) {
-        left.classList.remove('collapsed', 'open');
-        document.getElementById('right').classList.remove('collapsed', 'open');
-        document.getElementById('scrim').classList.remove('on');
-        fab.style.right = '';           // limpia el inline style del colapso desktop
-        shortcuts.style.display = 'none';
-      } else {
-        left.classList.remove('open');
-        document.getElementById('right').classList.remove('open');
-        document.getElementById('scrim').classList.remove('on');
-        shortcuts.style.display = left.classList.contains('collapsed') ? 'none' : '';
-      }
-    };
-    if (this.mq.addEventListener) this.mq.addEventListener('change', apply);
-    else if (this.mq.addListener) this.mq.addListener(apply);
-    apply();
-
-    document.getElementById('mobLeftBtn').onclick = () => this.toggleSheet('left');
-    document.getElementById('mobInfoBtn').onclick = () => this.toggleSheet('right');
-    document.getElementById('rightClose').onclick = () => this.closeSheets();
-    document.getElementById('scrim').onclick = () => this.closeSheets();
-  }
-
-  openSheet(which) {
-    if (!this.isMob) return;
-    const other = document.getElementById(which === 'left' ? 'right' : 'left');
-    other.classList.remove('open');
-    document.getElementById(which).classList.add('open');
-    this._syncScrim();
-  }
-
-  closeSheet(which) {
-    document.getElementById(which).classList.remove('open');
-    this._syncScrim();
-  }
-
-  toggleSheet(which) {
-    const el = document.getElementById(which);
-    if (el.classList.contains('open')) this.closeSheet(which);
-    else this.openSheet(which);
-  }
-
-  closeSheets() {
-    document.getElementById('left').classList.remove('open');
-    document.getElementById('right').classList.remove('open');
-    this._syncScrim();
-  }
-
-  _syncScrim() {
-    const on = document.getElementById('left').classList.contains('open') ||
-               document.getElementById('right').classList.contains('open');
-    document.getElementById('scrim').classList.toggle('on', on);
   }
 
   _wireButtons() {
@@ -5677,6 +5422,28 @@ async function main() {
 }
 
 main();
+</script>
+
+<script>
+  window.addEventListener('load', () => {
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      if (window.__ORBIT && window.__ORBIT.bodies && window.__ORBIT.bodies.mars && window.__ORBIT.bodies.mars.mesh && window.__DBG) {
+        clearInterval(iv);
+        setTimeout(() => {
+          try {
+            
+    const url = window.__DBG.PlanetSnapshot.capture(window.__ORBIT.bodies.mars, window.__ORBIT);
+    console.log('TEST: snapshot result = ' + (url ? ('url len ' + url.length) : 'NULL'));
+
+          } catch (e) { console.error('TEST ERROR: ' + (e && e.message) + ' | ' + (e && e.stack)); }
+        }, 400);
+      } else if (Date.now() - t0 > 25000) {
+        clearInterval(iv);
+        console.error('TEST ERROR: system not ready');
+      }
+    }, 100);
+  });
 </script>
 </body>
 </html>
