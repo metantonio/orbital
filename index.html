@@ -1229,14 +1229,14 @@ const MOONS = {
    =========================================================================== */
 const MAG_EDITORIAL = {
   sun: {
-    no: '01', kicker: 'The Burning Heart', title: 'Sol',
+    no: '01', kicker: 'The Burning Heart', title: 'Sun',
     deck: 'Ninety-nine point eight percent of all the mass in the solar system, burning for 4.6 billion years — with five billion more still in the tank.',
     body: [
-      'Sol is a middle-aged G-type star that fuses four million tonnes of matter into pure light every single second. That light drives every weather system, every ocean current and every living thing on every world it warms.',
+      'The Sun is a middle-aged G-type star that fuses four million tonnes of matter into pure light every single second. That light drives every weather system, every ocean current and every living thing on every world it warms.',
       'Its gravity is the architecture of the system: eight planets, the asteroid belts and the scattered Kuiper worlds beyond Neptune all trace their orbits around this single yellow star.'
     ],
     note: 'Sunlight takes 8 minutes 20 seconds to reach Earth. Every glance at the sky is a small act of time travel.',
-    cap: 'The photosphere of Sol, the only star in the system.',
+    cap: 'The photosphere of the Sun, the only star in the system.',
     lines: [
       ['The Furnace', 'Core temperatures exceed 15 million °C'],
       ['The Fleet', '8 planets, 5 dwarf planets, hundreds of known moons'],
@@ -1364,14 +1364,14 @@ const MAG_EDITORIAL = {
     ]
   },
   moon: {
-    no: '10', kicker: 'Our Faithful Satellite', title: 'Luna',
+    no: '10', kicker: 'Our Faithful Satellite', title: 'Moon',
     deck: 'Earth’s ancient companion — sculptor of the tides, and the only world beyond ours ever walked upon.',
     body: [
-      'Luna formed 4.5 billion years ago from the debris of a Mars-sized impactor that struck the young Earth. Its gravity raises the tides and steadies our axial tilt — the quiet engine of the seasons.',
+      'The Moon formed 4.5 billion years ago from the debris of a Mars-sized impactor that struck the young Earth. Its gravity raises the tides and steadies our axial tilt — the quiet engine of the seasons.',
       'It is tidally locked, so we always see the same face, and it drifts 3.8 cm farther away every year. Its cratered surface is an unbroken archive of the solar system’s violent youth.'
     ],
     note: 'The Moon recedes from Earth by about 3.8 cm per year — roughly the rate your fingernails grow.',
-    cap: 'Luna at the current epoch, tidally locked to Earth.',
+    cap: 'The Moon at the current epoch, tidally locked to Earth.',
     lines: [
       ['The Tides', 'Its gravity pulls Earth’s oceans into tides'],
       ['The Lock', 'Tidally locked: one face always toward Earth'],
@@ -1491,6 +1491,25 @@ const PlanetSnapshot = (() => {
     return v.normalize();
   }
 
+  // The portrait uses a fixed camera (+Z): keep the real solar azimuth but swing
+  // it toward the front so the visible hemisphere is never fully backlit.
+  function keyLightDirection(sunDir, maxAzimuthDeg = 52) {
+    const d = sunDir.clone().normalize();
+    const az = Math.atan2(d.x, d.z);
+    const lim = THREE.MathUtils.degToRad(maxAzimuthDeg);
+    const clamped = THREE.MathUtils.clamp(az, -lim, lim);
+    const delta = clamped - az;
+    if (Math.abs(delta) > 1e-6) d.applyAxisAngle(new THREE.Vector3(0, 1, 0), delta);
+    d.y = d.y * 0.55 + 0.2;
+    return d.normalize();
+  }
+
+  function setSunUniforms(mat, lightPos) {
+    if (!mat || !mat.uniforms) return;
+    if (mat.uniforms.uSunDir) mat.uniforms.uSunDir.value.copy(lightPos);
+    if (mat.uniforms.uSun) mat.uniforms.uSun.value.copy(lightPos);
+  }
+
   function capture(body, sys) {
     if (cache.has(body.key)) return cache.get(body.key);
     const r = ensureRenderer();
@@ -1522,61 +1541,84 @@ const PlanetSnapshot = (() => {
     later(mat);
 
     const sunDir = sunDirection(body, sys);
-    if (mat.uniforms && mat.uniforms.uSunDir) mat.uniforms.uSunDir.value.copy(sunDir);
+    const keyDir = keyLightDirection(sunDir);
+    const lightPos = keyDir.clone().multiplyScalar(12);
+    setSunUniforms(mat, lightPos);
 
     const sphere = later(new THREE.SphereGeometry(1, 96, 96));
     const mesh = new THREE.Mesh(sphere, mat);
     mesh.rotation.y = 2.05;
     group.add(mesh);
 
+    // Cloud shell (Earth)
+    if (body.cloudsMat) {
+      let cm = null;
+      try { cm = body.cloudsMat.clone(); } catch (e) { cm = null; }
+      if (cm) {
+        setSunUniforms(cm, lightPos);
+        const cg = later(new THREE.SphereGeometry(1.012, 64, 64));
+        const cloudMesh = new THREE.Mesh(cg, later(cm));
+        cloudMesh.rotation.y = 1.1;
+        group.add(cloudMesh);
+      }
+    }
+
     // Atmosphere rim
     if (body.atmosphereMat) {
       let am = null;
       try { am = body.atmosphereMat.clone(); } catch (e) { am = null; }
       if (am) {
-        if (am.uniforms && am.uniforms.uSunDir) am.uniforms.uSunDir.value.copy(sunDir);
+        setSunUniforms(am, lightPos);
         const ag = later(new THREE.SphereGeometry(body.key === 'earth' ? 1.04 : 1.07, 64, 64));
         group.add(new THREE.Mesh(ag, later(am)));
       }
     }
 
-    // Rings (Saturn)
+    // Rings (Saturn): ring geometry lives in scene units, portrait uses a unit sphere
     if (body.ring) {
       const rg = later(body.ring.geometry.clone());
       const rm = later(body.ring.material.clone());
       const rMesh = new THREE.Mesh(rg, rm);
+      rMesh.scale.setScalar(1 / (body.radiusScene || 1));
       rMesh.rotation.x = Math.PI / 2;
       group.add(rMesh);
     }
 
     // Corona glow for the Sun
     if (isStar) {
+      if (body.corona) {
+        const cg = later(body.corona.geometry.clone());
+        const cm = later(body.corona.material.clone());
+        const corona = new THREE.Mesh(cg, cm);
+        corona.scale.setScalar(1 / (body.radiusScene || 1));
+        group.add(corona);
+      }
       const gm = later(new THREE.SpriteMaterial({
         map: TextureFactory.glowTexture('#ffcf6b'), transparent: true,
         blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.95
       }));
       const glow = new THREE.Sprite(gm);
-      glow.scale.set(5.5, 5.5, 1);
+      glow.scale.set(3.6, 3.6, 1);
       scene.add(glow);
     }
 
-    group.rotation.z = (body._tiltAxis || 0) * THREE.MathUtils.degToRad();
+    // Axial tilt of the body (degToRad takes degrees — do not multiply again)
+    group.rotation.z = THREE.MathUtils.degToRad(body._tiltAxis || 0);
     scene.add(group);
 
     // Dramatic three-quarter lighting from the real sun direction
     if (!isStar) {
-      const lp = sunDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.5);
-      lp.y += 0.28;
-      lp.normalize().multiplyScalar(10);
       const key = new THREE.DirectionalLight(0xfff1d6, 3.2);
-      key.position.copy(lp);
+      key.position.copy(lightPos);
       scene.add(key);
       scene.add(new THREE.AmbientLight(0x2a3a52, 0.25));
     }
 
-    // Camera: planet fills ~75% of frame height
+    // Camera: frame the body so it reads well after the 4:3 CSS crop
     const cam = new THREE.PerspectiveCamera(30, 1, 0.05, 300);
-    cam.position.set(0, 0.16, 9.8).normalize().multiplyScalar(9.8);
+    const frameRadius = isStar ? 1.55 : (body.ring ? 2.9 : 1.5);
+    const camDist = frameRadius / Math.tan(THREE.MathUtils.degToRad(cam.fov * 0.5));
+    cam.position.set(0, 0.16, 1).normalize().multiplyScalar(camDist);
     cam.lookAt(0, 0, 0);
 
     r.render(scene, cam);
@@ -2680,20 +2722,22 @@ function makeAtmosphereMaterial(colorHex) {
       uIntensity: { value: 1.1 }
     },
     vertexShader: `
-      varying vec3 vNormal; varying vec3 vViewPos;
+      varying vec3 vNormal; varying vec3 vViewPos; varying vec3 vWorldPos; varying vec3 vWorldNormal;
       void main(){
         vNormal = normalize(normalMatrix * normal);
+        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
         vViewPos = (modelViewMatrix * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
     fragmentShader: `
-      varying vec3 vNormal; varying vec3 vViewPos;
+      varying vec3 vNormal; varying vec3 vViewPos; varying vec3 vWorldPos; varying vec3 vWorldNormal;
       uniform vec3 uColor; uniform vec3 uSun; uniform float uIntensity;
       void main(){
         vec3 viewDir = normalize(-vViewPos);
         float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.2);
-        vec3 toSun = normalize(uSun - (modelMatrix * vec4(position, 1.0)).xyz);
-        float lit = max(dot(vNormal, toSun), 0.0);
+        vec3 toSun = normalize(uSun - vWorldPos);
+        float lit = max(dot(normalize(vWorldNormal), toSun), 0.0);
         float wrap = 0.3 + 0.7 * lit;
         float a = fresnel * wrap * uIntensity;
         gl_FragColor = vec4(uColor, a);
